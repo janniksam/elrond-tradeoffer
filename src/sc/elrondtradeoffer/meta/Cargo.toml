@@ -1,0 +1,14 @@
+[package]
+name = "elrond_trade_offer-meta"
+version = "0.0.0"
+edition = "2018"
+publish = false
+
+[dependencies.elrond_trade_offer]
+path = ".."
+
+[dependencies.elrond-wasm]
+version = "0.25.0"
+
+[dependencies.elrond-wasm-debug]
+version = "0.25.0"
