@@ -54,7 +54,7 @@ pub trait Trader {
 
         require!(
             self.finished_offer(&trade_offer_id).is_empty(),
-            "An offer with this Id was already existing"
+            "An offer with this id was already existing"
         );
 
         let caller = self.blockchain().get_caller();
@@ -81,7 +81,7 @@ pub trait Trader {
     ) -> SCResult<()> {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
-            "An offer with this name does not exist."
+            "An offer with this id does not exist."
         );
 
         let caller = self.blockchain().get_caller();
@@ -92,6 +92,7 @@ pub trait Trader {
         );
         
         self.trade_offer(&trade_offer_id).clear();
+        self.finished_offer(&trade_offer_id).set(&2);
 
         self.send()
             .direct(&caller, &info.token_identifier_offered, info.token_nonce_offered, &info.token_amount_offered, b"Trade offer cancelled");
@@ -133,7 +134,7 @@ pub trait Trader {
         );
 
         self.trade_offer(&trade_offer_id).clear();
-        self.finished_offer(&trade_offer_id).set(&true);
+        self.finished_offer(&trade_offer_id).set(&1);
 
         // Exchanging tokens between parties
         let caller = self.blockchain().get_caller();
@@ -153,5 +154,5 @@ pub trait Trader {
 
     #[view(get_finished_offer)]
     #[storage_mapper("finished_offer")]
-    fn finished_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<bool>;
+    fn finished_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<u8>;
 }

@@ -8,6 +8,12 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows;
 public class StartMenuWorkflow : IBotProcessor
 {
     private const string AboutQuery = "about";
+    private const string AboutText = "Made with 💚 by [janniksam](https://twitter.com/janniksamc/)\n\n" +
+                                      "**Socials**\n" +
+                                      "[Telegram Bot Discussion Group](https://t.me/elrondTradeOffer)\n" +
+                                      "[Twitter \\(Coming soon\\)](https://twitter.com)\n\n" +
+                                      "**Source\\-Code**:\n" +
+                                      "[GitHub Repository](https://github.com/janniksam/elrond-tradeoffer)";
 
     public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
     {
@@ -23,10 +29,7 @@ public class StartMenuWorkflow : IBotProcessor
         if (query.Data == AboutQuery)
         {
             await DeleteMessageAsync(client, chatId, previousMessageId, ct);
-            await client.SendTextMessageAsync(chatId, "Coming soon",
-                replyMarkup: new InlineKeyboardMarkup(
-                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery)),
-                cancellationToken: ct);
+            await ShowAboutAsync(client, chatId, ct);
             return WorkflowResult.Handled();
         }
 
@@ -64,7 +67,7 @@ public class StartMenuWorkflow : IBotProcessor
         return WorkflowResult.Unhandled();
     }
 
-    public async Task StartPage(ITelegramBotClient client, long chatId, CancellationToken ct)
+    public static async Task StartPage(ITelegramBotClient client, long chatId, CancellationToken ct)
     {
         InlineKeyboardMarkup keyboardMarkup = new(
             new[]
@@ -91,6 +94,17 @@ public class StartMenuWorkflow : IBotProcessor
             "If both parties accept the conditions and come to an agreement, a Smart Contract will be used to play the middleman and exchange the tokens according to the conditions both parties have agreed on.\n\n" +
             "Please choose an action:",
             replyMarkup: keyboardMarkup,
+            cancellationToken: ct);
+    }
+
+    private static async Task ShowAboutAsync(ITelegramBotClient client, long chatId, CancellationToken ct)
+    {
+        await client.SendTextMessageAsync(chatId,
+            AboutText,
+            ParseMode.MarkdownV2,
+            disableWebPagePreview: true,
+            replyMarkup: new InlineKeyboardMarkup(
+                InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery)),
             cancellationToken: ct);
     }
 

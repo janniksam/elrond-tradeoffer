@@ -6,7 +6,8 @@ public enum BidState
     Accepted = 1,
     Declined = 2,
     Removed = 3,
-    Cancel = 4,
-    TradeInitiated = 5,
-    ReadyForClaiming = 6,
+    RemovedWhileOnBlockchain = 4,
+    CancelInitiated = 5,
+    TradeInitiated = 6,
+    ReadyForClaiming = 7,
 }

@@ -3,10 +3,11 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Elrond.TradeOffer.Web.BotWorkflows.BidsTemporary;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
-using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Models;
+using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
+using Elrond.TradeOffer.Web.Utils;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -25,6 +26,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly ITemporaryBidManager _temporaryBidManager;
         private readonly IElrondApiService _elrondApiService;
         private readonly IOfferNavigation _offerNavigation;
+        private readonly IBotNotifications _botNotifications;
+        private readonly INetworkStrategies _networkStrategies;
         private readonly Func<ITelegramBotClient, long, CancellationToken, Task> _backToStart;
 
         public BidCreationWorkflow(
@@ -34,6 +37,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             ITemporaryBidManager temporaryBidManager,
             IElrondApiService elrondApiService,
             IOfferNavigation offerNavigation,
+            IBotNotifications botNotifications,
+            INetworkStrategies networkStrategies,
             Func<ITelegramBotClient, long, CancellationToken, Task> backToStart)
         {
             _userManager = userManager;
@@ -42,6 +47,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             _temporaryBidManager = temporaryBidManager;
             _elrondApiService = elrondApiService;
             _offerNavigation = offerNavigation;
+            _botNotifications = botNotifications;
+            _networkStrategies = networkStrategies;
             _backToStart = backToStart;
         }
 
@@ -174,19 +181,18 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return;
             }
 
-            await BotNotifications.NotifyOnBidPlacedAsync(client, offer, chatId, temporaryBid.Amount, ct);
+            await _botNotifications.NotifyOnBidPlacedAsync(client, offer, chatId, temporaryBid.Amount, ct);
             await _offerNavigation.ShowOfferAsync(client, userId, chatId, temporaryBid.OfferId.Value, ct);
         }
 
         private async Task<WorkflowResult> PlaceBidWizard(ITelegramBotClient client, long userId, long chatId, IReadOnlyCollection<ElrondToken> balances, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
-
+            var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
             var temporaryBid = _temporaryBidManager.Get(userId);
             if (temporaryBid.OfferId == null)
             {
-                throw new ArgumentException(
-                    $"OfferId is NULL.", nameof(temporaryBid));
+                throw new ArgumentException("OfferId is NULL.", nameof(temporaryBid));
             }
 
             var offer = await _offerRepository.GetAsync(temporaryBid.OfferId.Value, ct);
@@ -202,7 +208,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             if (temporaryBid.Token == null)
             {
-                var message = $"You're trying to place a bid for the offer of {offer.Amount.ToCurrencyStringWithIdentifier()}.\n\n" +
+                var message = $"You're trying to place a bid for the offer of {offer.Amount.ToHtmlWithIdentifierUrl(networkStrategy)}.\n\n" +
                               "What tokens do you want to bid?";
                 var buttons = new List<InlineKeyboardButton[]>();
                 foreach (var tokenBalance in balances.OrderBy(p => p.Token.Identifier))
@@ -215,9 +221,16 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     });
                 }
 
+                buttons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ShowOfferQuery(offer.Id)), 
+                });
+
                 await client.SendTextMessageAsync(
                     chatId,
                     message,
+                    ParseMode.Html,
+                    disableWebPagePreview: true,
                     replyMarkup: new InlineKeyboardMarkup(buttons),
                     cancellationToken: ct);
                 return WorkflowResult.Handled();
@@ -233,13 +246,15 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 }
 
                 var message =
-                    $"You're trying to place a bid for the offer of {offer.Amount.ToCurrencyStringWithIdentifier()}.\n" +
-                    $"You chose the token {temporaryBid.Token.Identifier} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()}).\n\n" +
+                    $"You're trying to place a bid for the offer of {offer.Amount.ToHtmlWithIdentifierUrl(networkStrategy)}.\n" +
+                    $"You chose the token {temporaryBid.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()}).\n\n" +
                     "Please choose a token amount for your bid:";
 
                 await client.SendTextMessageAsync(
                     chatId,
                     message,
+                    ParseMode.Html,
+                    disableWebPagePreview: true,
                     cancellationToken: ct);
 
                 return WorkflowResult.Handled(UserContext.EnterBidAmount);
@@ -247,10 +262,10 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             else
             {
 
-                var message = $"<b><u>Summary of your bid for the offer of {offer.Amount.ToCurrencyStringWithIdentifier()}:</u></b>\n\n" +
+                var message = $"<b><u>Summary of your bid for the offer of {offer.Amount.ToHtmlWithIdentifierUrl(networkStrategy)}:</u></b>\n\n" +
                               $"<b>Network:</b> {elrondUser.Network}\n" +
                               $"<b>Address:</b> {elrondUser.ShortedAddress}\n" +
-                              $"<b>Your bid:</b> {temporaryBid.Amount.ToCurrencyStringWithIdentifier()}\n\n" +
+                              $"<b>Your bid:</b> {temporaryBid.Amount.ToHtmlWithIdentifierUrl(networkStrategy)}\n\n" +
                               "Do you want to place the bid now?";
 
                 await client.SendTextMessageAsync(
@@ -262,6 +277,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                         InlineKeyboardButton.WithCallbackData("Cancel", CommonQueries.ViewOffersQuery)
                     }),
                     parseMode: ParseMode.Html,
+                    disableWebPagePreview: true,
                     cancellationToken: ct);
 
                 return WorkflowResult.Handled();

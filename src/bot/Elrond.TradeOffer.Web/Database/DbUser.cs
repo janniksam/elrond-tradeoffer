@@ -1,6 +1,6 @@
 ﻿namespace Elrond.TradeOffer.Web.Database;
 
-public class DbUser
+public class DbUser : BaseEntity
 {
     public DbUser(long id, string? address, ElrondNetwork network)
     {

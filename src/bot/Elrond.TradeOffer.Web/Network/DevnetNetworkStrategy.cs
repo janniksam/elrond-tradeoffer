@@ -14,4 +14,14 @@ public class DevnetNetworkStrategy : NetworkStrategy
     {
         return _smartContractAddress;
     }
+
+    public override string GetTokenUrlFormat()
+    {
+        return "https://devnet-explorer.elrond.com/tokens/{0}";
+    }
+
+    public override string GetApiGateway()
+    {
+        return "https://devnet-api.elrond.com";
+    }
 }

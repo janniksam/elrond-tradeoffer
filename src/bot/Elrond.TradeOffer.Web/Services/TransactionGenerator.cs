@@ -77,7 +77,6 @@ namespace Elrond.TradeOffer.Web.Services
             var receiver = networkStrategy.GetSmartContractAddress();
             var minGasLimit = networkConfig.Config.erd_min_gas_limit;
             var minGasPrice = networkConfig.Config.erd_min_gas_price;
-            long? nonce = null;
 
             TransactionRequest request;
             if (acceptedBid.Amount.Token.IsEgld())
@@ -88,8 +87,7 @@ namespace Elrond.TradeOffer.Web.Services
                     acceptedBid.Amount,
                     minGasLimit,
                     minGasPrice,
-                    data,
-                    nonce);
+                    data);
             }
             else
             {
@@ -99,12 +97,37 @@ namespace Elrond.TradeOffer.Web.Services
                     TokenAmount.From(0, Token.Egld()),
                     minGasLimit,
                     minGasPrice,
-                    data,
-                    nonce);
+                    data);
             }
 
             request.GasLimit = CalculateGasPrice(request, networkConfig);
             return networkStrategy.GetTransactionUrl(request);
+        }
+
+        public async Task<string> GenerateReclaimUrlAsync(Offer offer)
+        {
+            var elrondUser = await _userManager.GetAsync(offer.CreatorUserId, CancellationToken.None);
+            if (elrondUser.Address == null)
+            {
+                throw new ArgumentException("Address of the user needs to be filled.", nameof(offer));
+            }
+
+            var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
+            var networkConfig = await _elrondApiService.GetNetworkConfigAsync(elrondUser.Network);
+            var receiver = networkStrategy.GetSmartContractAddress();
+            var minGasLimit = networkConfig.Config.erd_min_gas_limit;
+            var minGasPrice = networkConfig.Config.erd_min_gas_price;
+            var data = CreateDataForReclaim(offer);
+
+            var request = new TransactionRequest(receiver, TokenAmount.From(0, Token.Egld()), minGasLimit, minGasPrice, data);
+            request.GasLimit = CalculateGasPrice(request, networkConfig);
+            return networkStrategy.GetTransactionUrl(request);
+        }
+
+        private static string CreateDataForReclaim(Offer offer)
+        {
+            var offerId =offer.Id.ToHex();
+            return $"cancel_offer@{offerId}";
         }
 
         private static string CreateDataInitiateTradeForEgld(Bid bid)

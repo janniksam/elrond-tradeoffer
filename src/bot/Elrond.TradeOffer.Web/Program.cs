@@ -24,6 +24,17 @@ var configuration = new ConfigurationBuilder()
 
 builder.Services.AddSingleton<IConfiguration>(configuration);
 
+builder.Services.AddLogging(b =>
+{
+    b.AddConsole();
+    var loggingSection = configuration.GetSection("Logging");
+    b.AddFile(loggingSection,
+        fileLoggerOpts =>
+        {
+            fileLoggerOpts.FormatLogFileName = fName => string.Format(fName, DateTime.UtcNow);
+        });
+});
+
 // cache
 builder.Services.AddSingleton<IUserCacheManager, UserCacheManager>();
 builder.Services.AddSingleton<ITemporaryOfferManager, TemporaryOfferManager>();
@@ -52,6 +63,7 @@ builder.Services.AddDbContextFactory<ElrondTradeOfferDbContext>(o =>
 builder.Services.AddTransient<IElrondApiService, ElrondApiService>();
 builder.Services.AddTransient<ITransactionGenerator, TransactionGenerator>();
 builder.Services.AddTransient<ITestDataProvider, TestDataProvider>();
+builder.Services.AddTransient<IBotNotifications, BotNotifications>();
 
 // repositories
 builder.Services.AddTransient<IOfferRepository, SqlOfferRepository>();

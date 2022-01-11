@@ -1,6 +1,5 @@
 ﻿using System.Text;
 using System.Text.Encodings.Web;
-using Elrond.TradeOffer.Web.Models;
 
 namespace Elrond.TradeOffer.Web.Network
 {
@@ -18,6 +17,10 @@ namespace Elrond.TradeOffer.Web.Network
         {
             return $"{_walletUrl}/hook/transaction/?{BuildTransactionUrl(request, callbackUrl)}";
         }
+
+        public abstract string GetTokenUrlFormat();
+
+        public abstract string GetApiGateway();
 
         private static string BuildTransactionUrl(TransactionRequest request, string? callbackUrl)
         {
@@ -42,26 +45,8 @@ namespace Elrond.TradeOffer.Web.Network
 
         public Erdcsharp.Configuration.Network Network { get; }
 
+        public bool IsNetworkAvailable() => !string.IsNullOrWhiteSpace(GetSmartContractAddress());
+
         public abstract string GetSmartContractAddress();
-    }
-
-    public class TransactionRequest
-    {
-        public TransactionRequest(string receiver, TokenAmount value, int gasLimit, int gasPrice, string data, long? nonce = null)
-        {
-            Receiver = receiver;
-            Value = value;
-            GasLimit = gasLimit;
-            GasPrice = gasPrice;
-            Data = data;
-            Nonce = nonce;
-        }
-
-        public string Receiver { get; set; }
-        public TokenAmount Value { get; set; }
-        public int GasLimit { get; set; }
-        public int GasPrice { get; set; }
-        public string Data { get; set; }
-        public long? Nonce { get; set; }
     }
 }

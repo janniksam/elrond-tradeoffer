@@ -14,4 +14,14 @@ public class MainnetNetworkStrategy : NetworkStrategy
     {
         return _smartContractAddress;
     }
+
+    public override string GetTokenUrlFormat()
+    {
+        return "https://explorer.elrond.com/tokens/{0}";
+    }
+
+    public override string GetApiGateway()
+    {
+        return "https://api.elrond.com";
+    }
 }

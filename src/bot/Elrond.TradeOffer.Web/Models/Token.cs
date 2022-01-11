@@ -1,4 +1,7 @@
-﻿namespace Elrond.TradeOffer.Web.Models;
+﻿using Elrond.TradeOffer.Web.Network;
+using Elrond.TradeOffer.Web.Utils;
+
+namespace Elrond.TradeOffer.Web.Models;
 
 public record Token
 {
@@ -26,12 +29,14 @@ public record Token
     public int DecimalPrecision { get; }
 
     public bool IsEgld() => Identifier == EgldIdentifier;
-    
+
+    public bool IsNft() => DecimalPrecision == 0 && Nonce != 0;
+
     public static Token Egld() => new(EgldIdentifier, EgldIdentifier, 0, 18);
 
     public static Token Esdt(string name, string identifier, int decimalPrecision) => new(name, identifier, 0, decimalPrecision);
 
-    public static Token EsdtNft(string name, string identifier, ulong nonce) => new(name, identifier, nonce, 0);
+    public static Token Nft(string name, string identifier, int decimalPrecision, ulong nonce) => new(name, identifier, nonce, decimalPrecision);
 
     public override string ToString() => Name;
 }

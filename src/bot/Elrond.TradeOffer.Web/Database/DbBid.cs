@@ -1,13 +1,12 @@
 ﻿#pragma warning disable CS8618
 namespace Elrond.TradeOffer.Web.Database;
 
-public class DbBid
+public class DbBid : BaseEntity
 {
     public DbBid(
         Guid offerId,
         long creatorUserId, 
         long creatorChatId,
-        DateTime createdAt,
         BidState state,
         string tokenIdentifier, 
         string tokenName,
@@ -17,7 +16,6 @@ public class DbBid
     {
         OfferId = offerId;
         CreatorUserId = creatorUserId;
-        CreatedAt = createdAt;
         CreatorChatId = creatorChatId;
         State = state;
         TokenIdentifier = tokenIdentifier;
@@ -31,8 +29,6 @@ public class DbBid
 
     public long CreatorUserId { get; set; }
     
-    public DateTime CreatedAt { get; set; }
-
     public long CreatorChatId { get; set; }
     
     public BidState State { get; set; }

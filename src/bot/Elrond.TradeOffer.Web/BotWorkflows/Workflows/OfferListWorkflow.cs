@@ -1,9 +1,13 @@
 ﻿using Elrond.TradeOffer.Web.BotWorkflows.Bids;
+using Elrond.TradeOffer.Web.BotWorkflows.Offers;
 using Elrond.TradeOffer.Web.Database;
+using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
+using Elrond.TradeOffer.Web.Utils;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
@@ -21,17 +25,23 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IOfferRepository _offerRepository;
         private readonly ITransactionGenerator _transactionGenerator;
         private readonly IElrondApiService _elrondApiService;
+        private readonly IBotNotifications _botNotifications;
+        private readonly INetworkStrategies _networkStrategies;
 
         public OfferListWorkflow(
             IUserRepository userManager, 
             IOfferRepository offerRepository,
             ITransactionGenerator transactionGenerator,
-            IElrondApiService elrondApiService)
+            IElrondApiService elrondApiService,
+            IBotNotifications botNotifications,
+            INetworkStrategies networkStrategies)
         {
             _userManager = userManager;
             _offerRepository = offerRepository;
             _transactionGenerator = transactionGenerator;
             _elrondApiService = elrondApiService;
+            _botNotifications = botNotifications;
+            _networkStrategies = networkStrategies;
         }
 
         public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
@@ -223,7 +233,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     },
                     ct);
 
-                await BotNotifications.NotifyOnOfferSendToBlockchainAsync(client, offer, acceptedBid, ct);
+                await _botNotifications.NotifyOnOfferSendToBlockchainAsync(client, offer, acceptedBid, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
@@ -274,12 +284,44 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return;
             }
 
-            await _offerRepository.CancelAsync(offerId, ct);
+            var acceptedBid = await _offerRepository.GetPendingBidAsync(offerId, ct);
+            
+            var result = await _offerRepository.CancelAsync(offerId, userId, ct);
+            if (result == CancelOfferResult.OfferNotFound)
+            {
+                await NoOfferFoundAsync(client, userId, chatId, ct);
+                return;
+            }
+
+            if (result == CancelOfferResult.InvalidUser)
+            {
+                await client.SendTextMessageAsync(chatId, "Wrong user.", cancellationToken: ct);
+                await ShowOfferAsync(client, userId, chatId, offerId, ct);
+                return;
+            }
+
+            if (acceptedBid != null)
+            {
+                await ApiExceptionHelper.RunAndSupressAsync(
+                    async () =>
+                    {
+                        await client.SendTextMessageAsync(
+                            acceptedBid.CreatorChatId,
+                            $"The creator of the {offer.Amount.ToCurrencyStringWithIdentifier()} offer has changed their mind and cancelled the offer.\n\n" +
+                            "Sorry, hopefully it will work out for you next time!",
+                            cancellationToken: ct);
+                    });
+            }
+
+            if (result == CancelOfferResult.CreatorNeedsToRetrieveTokens)
+            {
+                await ShowOfferAsync(client, userId, chatId, offerId, ct);
+                return;
+            }
 
             await client.SendTextMessageAsync(chatId,
-                $"Offer {offer.Amount.ToCurrencyStringWithIdentifier()} was cancelled.",
+                "Your offer was cancelled successfully.",
                 cancellationToken: ct);
-
             await ShowOffersAsync(client, userId, chatId, ct);
         }
 
@@ -292,157 +334,362 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return;
             }
 
-            var message = $"Details for offer {offer.Amount.ToCurrencyStringWithIdentifier()}\n\n" +
+            var strategy = _networkStrategies.GetStrategy(offer.Network);
+
+            var message = $"Details for offer {offer.Amount.ToHtmlWithIdentifierUrl(strategy)}\n\n" +
                           $"Description: {offer.Description}\n\n";
 
             var offerBids = await _offerRepository.GetBidsAsync(offerId, ct);
 
-            var buttons = new List<InlineKeyboardButton[]>();
             if (offer.CreatorUserId == userId)
             {
-                var createdBid = offerBids.FirstOrDefault(p => p.State is BidState.Created);
-                var acceptedOrPendingBid = offerBids.FirstOrDefault(p => p.
-                    State is BidState.Accepted or BidState.TradeInitiated or BidState.ReadyForClaiming);
+                var createdBids = offerBids.Where(p => p.State is BidState.Created).Take(3).ToArray();
+                var acceptedOrPendingBid = offerBids.FirstOrDefault(
+                    p => p.State is BidState.Accepted or BidState.TradeInitiated or BidState.ReadyForClaiming or BidState.CancelInitiated);
                 if (acceptedOrPendingBid != null)
                 {
                     if (acceptedOrPendingBid.State == BidState.Accepted)
                     {
-                        message +=
-                            $"You have accepted an offer: {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()}\n" +
-                            "If you wish to proceed, you need to initiate the transaction and then transfer your tokens to the smart contract.";
-                        buttons.Add(new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("🚀 Initiate trade", $"{InitiateTradeOfferQueryPrefix}{offer.Id}")
-                        });
+                        await BidAcceptedResponseCreatorAsync(client, chatId, message, acceptedOrPendingBid, offer, ct);
+                        return;
                     }
-                    else if (acceptedOrPendingBid.State == BidState.TradeInitiated)
+                    
+                    if (acceptedOrPendingBid.State == BidState.TradeInitiated)
                     {
-                        message +=
-                            "You have initiated the trade.\n" +
-                            $"You need to send your {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()} to the smart contract now.\n" +
-                            "Have you already have sent the tokens? Press \"Refresh transaction status\" to check for new status.";
-                        var sendOfferTokensUrl = await _transactionGenerator.GenerateInitiateTradeUrlAsync(offer, acceptedOrPendingBid);
-                        buttons.Add(new[]
-                        {
-                            InlineKeyboardButton.WithUrl($"✉ Send {offer.Amount.ToCurrencyStringWithIdentifier()}", sendOfferTokensUrl),
-                        });
-                        buttons.Add(new[]
-                        {
-                            InlineKeyboardButton.WithCallbackData("Refresh transaction status", $"{RefreshInitiateStatusQueryPrefix}{offerId}")
-                        });
+                        await AcceptedAndReadyForSendResponseAsync(client, message, chatId, acceptedOrPendingBid, offer, ct);
+                        return;
                     }
-                    else
+
+                    if (acceptedOrPendingBid.State == BidState.CancelInitiated)
                     {
-                        message +=
-                            $"You have accepted the offer for your {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()} and sent your tokens to the smart contract.\n" +
-                            "Please wait for the other party to finalize the exchange or cancel your offer to get back your tokens.";
+                        await ReclaimResponseAsync(client, chatId, ct, message, offer);
+                        return;
                     }
+
+                    if (acceptedOrPendingBid.State is BidState.Removed or BidState.RemovedWhileOnBlockchain)
+                    {
+                        await BidRemovedResponseAsync(client, message, chatId, offer, ct);
+                        return;
+                    }
+
+                    await AcceptedAndSendToScResponseAsync(client, message, chatId, acceptedOrPendingBid, offer, ct);
                 }
-                else if (createdBid != null)
+                else if (createdBids.Length > 0)
                 {
-                    message +=
-                        $"You have received a bid: {createdBid.Amount.ToCurrencyStringWithIdentifier()}\n" +
-                        "Do you want to accept this bid?";
-                    buttons.Add(new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("✅ Accept bid", $"{AcceptBidQueryPrefix}{offer.Id}_{createdBid.CreatorUserId}"),
-                        InlineKeyboardButton.WithCallbackData("❌ Decline bid", $"{DeclineBidQueryPrefix}{offer.Id}_{createdBid.CreatorUserId}"),
-                    });
+                    await BidReceivedResponseAsync(client, message, chatId, createdBids, offer, ct);
                 }
                 else
                 {
-                    message += "Currently there are no bids.";
+                    await NoBidsResponseCreatorAsync(client, message, chatId, offer, ct);
+                    return;
                 }
-                
-                buttons.Add(new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-                });
 
-                await client.SendTextMessageAsync(chatId, message, replyMarkup: new InlineKeyboardMarkup(buttons),
-                    cancellationToken: ct);
                 return;
             }
 
             var myBid = offerBids.FirstOrDefault(p => p.CreatorUserId == userId);
             if(myBid == null)
             {
-                buttons.Add(new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Place bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-                });
-
-                await client.SendTextMessageAsync(chatId, message, replyMarkup: new InlineKeyboardMarkup(buttons),
-                    cancellationToken: ct);
+                await NoBidsResponseBidderAsync(client, message, chatId, offer, ct);
                 return;
             }
 
             message += $"You bid {myBid.Amount.ToCurrencyStringWithIdentifier()}.\n";
             if (myBid.State == BidState.Created)
             {
-                message += "Your bid has neither been accepted nor declined yet.\nPlease wait for the creator of this offer to accept/decline your bid.";
-                buttons.Add(new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("✂ Update bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("✖ Remove bid", $"{RemoveBidQueryPrefix}{offer.Id}"),
-                });
-                buttons.Add(new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-                });
-                await client.SendTextMessageAsync(chatId, message, replyMarkup: new InlineKeyboardMarkup(buttons),
-                    cancellationToken: ct);
+                await BidCreatedResponseAsync(client, chatId, message, offer, ct);
                 return;
             }
 
-            if (myBid.State == BidState.Accepted || myBid.State == BidState.TradeInitiated)
+            if (myBid.State is BidState.Accepted or BidState.TradeInitiated)
             {
-                message += "Your bid was accepted. Please wait for the offer creator to initiate the exchange now.";
-                buttons.Add(new[]
-                {
-                    InlineKeyboardButton.WithCallbackData("✂ Update bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("✖ Remove bid", $"{RemoveBidQueryPrefix}{offer.Id}"),
-                });
-                buttons.Add(new []
-                {
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-                });
-                await client.SendTextMessageAsync(chatId, message, replyMarkup: new InlineKeyboardMarkup(buttons),
-                    cancellationToken: ct);
+                await BidAcceptedResponseBidderAsync(client, message, chatId, offer, ct);
                 return;
             }
 
             if(myBid.State == BidState.ReadyForClaiming)
             {
-                var finalizeTradeUrl = await _transactionGenerator.GenerateFinalizeTradeUrlAsync(offer, myBid);
-                message += "Your bid was accepted and the created of the offer transfered the tokens to the smart contract.\n\nYou can finalize the trade now.";
-                buttons.Add(new[]
-                {
-                    InlineKeyboardButton.WithUrl("🚀 Finalize trade", finalizeTradeUrl),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-                });
-                await client.SendTextMessageAsync(
-                    chatId, 
-                    message,
-                    replyMarkup: new InlineKeyboardMarkup(buttons),
-                    cancellationToken: ct);
+                await FinalizeTradeResponseAsync(client, chatId, offer, myBid, message, ct);
                 return;
             }
 
             if (myBid.State == BidState.Declined)
             {
-                message += "Your bid was declined. Place a new one.";
+                await BidDeclinedResponseAsync(client, chatId, message, offer, ct);
+                return;
+            }
+        }
+
+        private async Task ReclaimResponseAsync(ITelegramBotClient client, long chatId, CancellationToken ct, string message,
+            Offer offer)
+        {
+            message +=
+                "Cancellation of the order was requested.\n\n" +
+                "Since you already sent your tokens to the smart contract, you can reclaim them now:";
+
+            var reclaimUrl = await _transactionGenerator.GenerateReclaimUrlAsync(offer);
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithUrl("Reclaim tokens", reclaimUrl),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task BidAcceptedResponseCreatorAsync(ITelegramBotClient client, long chatId, string message,
+            Bid acceptedOrPendingBid, Offer offer, CancellationToken ct)
+        {
+            message +=
+                $"You have accepted an offer: {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()}\n" +
+                "If you wish to proceed, you need to initiate the transaction and then transfer your tokens to the smart contract.";
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("🚀 Initiate trade", $"{InitiateTradeOfferQueryPrefix}{offer.Id}")
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(
+                chatId, 
+                message, 
+                ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private async Task AcceptedAndReadyForSendResponseAsync(ITelegramBotClient client, string message, long chatId, Bid acceptedOrPendingBid, Offer offer, CancellationToken ct)
+        {
+            message +=
+                "You have initiated the trade.\n" +
+                $"You need to send your {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()} to the smart contract now.\n" +
+                "Have you already have sent the tokens? Press \"Refresh transaction status\" to check for new status.";
+            var sendOfferTokensUrl = await _transactionGenerator.GenerateInitiateTradeUrlAsync(offer, acceptedOrPendingBid);
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithUrl($"✉ Send {offer.Amount.ToCurrencyStringWithIdentifier()}", sendOfferTokensUrl),
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Refresh transaction status",
+                        $"{RefreshInitiateStatusQueryPrefix}{offer.Id}")
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task BidRemovedResponseAsync(ITelegramBotClient client, string message, long chatId, Offer offer, CancellationToken ct)
+        {
+            //todo Improve logic here
+            message +=
+                "The bid you received has been removed.\n\n";
+
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true, 
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task AcceptedAndSendToScResponseAsync(ITelegramBotClient client, string message, long chatId,
+            Bid acceptedOrPendingBid, Offer offer, CancellationToken ct)
+        {
+            message +=
+                $"You have accepted the bid for your {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()} and sent your tokens to the smart contract.\n\n" +
+                "Please wait for the other party to finalize the exchange or cancel your offer to get back your tokens.";
+
+            var buttons = new List<InlineKeyboardButton[]>();
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+            });
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true, 
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task BidReceivedResponseAsync(ITelegramBotClient client, string message, long chatId, IReadOnlyCollection<Bid> createdBids, Offer offer, CancellationToken ct)
+        {
+            message +=
+                "You received the following bids. You can either accept or decline them.";
+            var buttons = new List<InlineKeyboardButton[]>();
+            foreach (var createdBid in createdBids)
+            {
                 buttons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData($"✅ Accept: {createdBid.Amount.ToCurrencyStringWithIdentifier()}",
+                        $"{AcceptBidQueryPrefix}{offer.Id}_{createdBid.CreatorUserId}"),
+                    InlineKeyboardButton.WithCallbackData($"❌ Decline: {createdBid.Amount.ToCurrencyStringWithIdentifier()}",
+                        $"{DeclineBidQueryPrefix}{offer.Id}_{createdBid.CreatorUserId}"),
+                });
+            }
+
+            buttons.Add(
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                });
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true, 
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task NoBidsResponseCreatorAsync(ITelegramBotClient client, string message, long chatId, Offer offer, CancellationToken ct)
+        {
+            message += "Currently there are no bids.";
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true, 
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task NoBidsResponseBidderAsync(ITelegramBotClient client, string message, long chatId, Offer offer, CancellationToken ct)
+        {
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Place bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true, 
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task BidCreatedResponseAsync(ITelegramBotClient client, long chatId, string baseMessage, Offer offer, CancellationToken ct)
+        {
+            var buttons = new List<InlineKeyboardButton[]>();
+            baseMessage +=
+                "Your bid has neither been accepted nor declined yet.\nPlease wait for the creator of this offer to accept/decline your bid.";
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData("✂ Update bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
+                InlineKeyboardButton.WithCallbackData("✖ Remove bid", $"{RemoveBidQueryPrefix}{offer.Id}"),
+            });
+            buttons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+            });
+
+            await client.SendTextMessageAsync(chatId, baseMessage, ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task BidAcceptedResponseBidderAsync(ITelegramBotClient client, string baseMessage, long chatId, Offer offer, CancellationToken ct)
+        {
+            baseMessage += "Your bid was accepted. Please wait for the offer creator to initiate the exchange now.";
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("✖ Remove bid", $"{RemoveBidQueryPrefix}{offer.Id}"),
+                },
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, baseMessage, ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private static async Task BidDeclinedResponseAsync(ITelegramBotClient client, long chatId, string message, Offer offer, CancellationToken ct)
+        {
+            message += "Your bid was declined. Place a new one.";
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Place new bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
                     InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-                });
-                await client.SendTextMessageAsync(chatId, message, replyMarkup: new InlineKeyboardMarkup(buttons),
-                    cancellationToken: ct);
-                return;
-            }
+                }
+            };
+
+            await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
+                disableWebPagePreview: true, 
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
+        private async Task FinalizeTradeResponseAsync(
+            ITelegramBotClient client, long chatId, Offer offer, Bid myBid, string message, CancellationToken ct)
+        {
+            var finalizeTradeUrl = await _transactionGenerator.GenerateFinalizeTradeUrlAsync(offer, myBid);
+            message +=
+                "Your bid was accepted and the created of the offer transfered the tokens to the smart contract.\n\nYou can finalize the trade now.";
+            
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithUrl("🚀 Finalize trade", finalizeTradeUrl),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
+
+            await client.SendTextMessageAsync(
+                chatId,
+                message,
+                ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
         }
 
         public async Task ShowOffersAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
@@ -450,7 +697,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var elrondUser = await _userManager.GetAsync(userId, ct);
             var offers = (await _offerRepository.GetAllOffersAsync(elrondUser.Network, ct))
                 .OrderByDescending(p => p.CreatorUserId == userId)
-                .ThenByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.CreatedOn)
                 .Take(10)
                 .ToArray();
 
@@ -490,18 +737,17 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Your bid was removed successfully.",
                     cancellationToken: ct);
-            }
-            else
-            {
-                await client.SendTextMessageAsync(
-                    chatId,
-                    "Could not remove your bid.",
-                    cancellationToken: ct);
+                await ShowOfferAsync(client, userId, chatId, offerId, ct);
+                return;
             }
 
+            await client.SendTextMessageAsync(
+                chatId,
+                "Could not remove your bid.",
+                cancellationToken: ct);
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
         }
-       
+
         private async Task AcceptBidAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, long bidUserId, CancellationToken ct)
         {
             var offer = await _offerRepository.GetAsync(offerId, ct);
@@ -520,24 +766,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return;
             }
 
-            var success = await _offerRepository.UpdateBidAsync(offerId, bidUserId, b =>
-            {
-                if (b.State is not (BidState.Created or BidState.Accepted or BidState.Declined))
-                {
-                    return false;
-                }
-
-                b.State = BidState.Accepted;
-                return true;
-            }, ct);
-
+            var (success, declinedBids) = await _offerRepository.AcceptAsync(offerId, bidUserId, ct);
             if (!success)
             {
                 await client.SendTextMessageAsync(chatId, $"Could not accept the bid {bid.Amount.ToCurrencyStringWithIdentifier()}.", cancellationToken: ct);
             }
             else
             {
-                await BotNotifications.NotifyOnBidAccepted(client, chatId, bid, ct);
+                await _botNotifications.NotifyOnBidAccepted(client, chatId, offer, bid, declinedBids, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
@@ -570,7 +806,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
             else
             {
-                await BotNotifications.NotifyOnBidDeclined(client, chatId, bid, ct);
+                await _botNotifications.NotifyOnBidDeclined(client, chatId, bid, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);

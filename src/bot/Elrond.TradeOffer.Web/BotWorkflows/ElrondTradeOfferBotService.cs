@@ -2,6 +2,7 @@
 using Elrond.TradeOffer.Web.BotWorkflows.OffersTemporary;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.BotWorkflows.Workflows;
+using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Telegram.Bot;
@@ -19,7 +20,10 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         private readonly ITransactionGenerator _transactionGenerator;
         private readonly IBotManager _botManager;
         private readonly IUserContextManager _userContextManager;
+        private readonly INetworkStrategies _networkStrategies;
+        private readonly IBotNotifications _botNotification;
         private readonly Func<IOfferRepository> _offerRepositoryFactory;
+        private readonly ILogger<ElrondTradeOfferBotService> _logger;
         private readonly Func<IUserRepository> _userRepositoryFactory;
         private readonly CancellationTokenSource _cts;
         
@@ -30,8 +34,11 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             ITransactionGenerator transactionGenerator,
             IBotManager botManager,
             IUserContextManager userContextManager,
+            INetworkStrategies networkStrategies,
+            IBotNotifications botNotification,
             Func<IUserRepository> userRepositoryFactory,
-            Func<IOfferRepository> offerRepositoryFactory)
+            Func<IOfferRepository> offerRepositoryFactory,
+            ILogger<ElrondTradeOfferBotService> logger)
         {
             _temporaryOfferManager = temporaryOfferManager;
             _temporaryBidManager = temporaryBidManager;
@@ -39,8 +46,11 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             _transactionGenerator = transactionGenerator;
             _botManager = botManager;
             _userContextManager = userContextManager;
+            _networkStrategies = networkStrategies;
+            _botNotification = botNotification;
             _userRepositoryFactory = userRepositoryFactory;
             _offerRepositoryFactory = offerRepositoryFactory;
+            _logger = logger;
             _cts = new CancellationTokenSource();
         }
 
@@ -100,30 +110,38 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             }
             catch (ApiRequestException ex)
             {
+                _logger.LogError(ex, "Unexpected ApiRequestException.");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unexpected exception.");
             }
         }
 
-        private IBotProcessor[] GetWorkflows()
+        private IEnumerable<IBotProcessor> GetWorkflows()
         {
             var userRepository = _userRepositoryFactory();
             var offerRepository = _offerRepositoryFactory();
             var startmenuWorkflow = new StartMenuWorkflow();
             var offerListWorkflow = new OfferListWorkflow(
-                userRepository, offerRepository, _transactionGenerator, _elrondApiService);
+                userRepository, 
+                offerRepository, 
+                _transactionGenerator, 
+                _elrondApiService, 
+                _botNotification, 
+                _networkStrategies);
 
             var botWorkflows = new IBotProcessor[]
             {
                 startmenuWorkflow,
                 new OfferCreationWorkflow(userRepository, _userContextManager, _temporaryOfferManager, 
-                    offerRepository, _elrondApiService, startmenuWorkflow.StartPage),
+                    offerRepository, _elrondApiService, _networkStrategies, StartMenuWorkflow.StartPage),
                 offerListWorkflow,
                 new BidCreationWorkflow(
                     userRepository, _userContextManager, offerRepository, _temporaryBidManager, 
-                    _elrondApiService, offerListWorkflow, startmenuWorkflow.StartPage),
-                new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager),
+                    _elrondApiService, offerListWorkflow, _botNotification, _networkStrategies, 
+                    StartMenuWorkflow.StartPage),
+                new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager, _networkStrategies),
             };
 
             return botWorkflows;

@@ -52,6 +52,29 @@ public class ElrondTradeOfferDbContext: DbContext
             .ValueGeneratedNever();
     }
 
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = new CancellationToken())
+    {
+        UpdateCreatedOnUpdatedOn();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void UpdateCreatedOnUpdatedOn()
+    {
+        var addedEntities = ChangeTracker.Entries<BaseEntity>().Where(p => p.State == EntityState.Added).ToList();
+        addedEntities.ForEach(p =>
+        {
+            var now = DateTime.UtcNow;
+            p.Property(nameof(BaseEntity.CreatedOn)).CurrentValue = now;
+            p.Property(nameof(BaseEntity.UpdatedOn)).CurrentValue = now;
+        });
+
+        var editedEntities = ChangeTracker.Entries<BaseEntity>().Where(p => p.State == EntityState.Modified).ToList();
+        editedEntities.ForEach(p =>
+        {
+            p.Property(nameof(BaseEntity.UpdatedOn)).CurrentValue = DateTime.UtcNow;
+        });
+    }
+
     public virtual DbSet<DbOffer> Offers => Set<DbOffer>();
 
     public virtual DbSet<DbBid> Bids => Set<DbBid>();

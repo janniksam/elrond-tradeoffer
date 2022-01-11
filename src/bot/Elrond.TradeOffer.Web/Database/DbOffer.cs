@@ -1,11 +1,10 @@
 ﻿#pragma warning disable CS8618
 namespace Elrond.TradeOffer.Web.Database;
 
-public class DbOffer
+public class DbOffer : BaseEntity
 {
     public DbOffer(
         Guid id,
-        DateTime createdAt,
         ElrondNetwork network,
         long creatorUserId,
         long creatorChatId, 
@@ -17,7 +16,6 @@ public class DbOffer
         string tokenAmount)
     {
         Id = id;
-        CreatedAt = createdAt;
         Network = network;
         CreatorUserId = creatorUserId;
         CreatorChatId = creatorChatId;
@@ -30,8 +28,6 @@ public class DbOffer
     }
 
     public Guid Id { get; set; }
-    
-    public DateTime CreatedAt { get; set; }
     
     public ElrondNetwork Network { get; set; }
 

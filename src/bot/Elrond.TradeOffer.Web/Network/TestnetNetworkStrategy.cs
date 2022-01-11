@@ -14,4 +14,14 @@ public class TestnetNetworkStrategy : NetworkStrategy
     {
         return _smartContractAddress;
     }
+
+    public override string GetTokenUrlFormat()
+    {
+        return "https://testnet-explorer.elrond.com/tokens/{0}";
+    }
+
+    public override string GetApiGateway()
+    {
+        return "https://testnet-api.elrond.com";
+    }
 }

@@ -1,4 +1,6 @@
 ﻿using System.Numerics;
+using Elrond.TradeOffer.Web.Network;
+using Elrond.TradeOffer.Web.Utils;
 using Erdcsharp.Domain.Exceptions;
 
 namespace Elrond.TradeOffer.Web.Models
@@ -32,7 +34,18 @@ namespace Elrond.TradeOffer.Web.Models
 
         public string ToCurrencyStringWithIdentifier()
         {
-            return $"{ToDenominated().TrimEnd('0').TrimEnd('.')} {Token.Identifier}";
+            return $"{ToCurrencyString()} {Token.Identifier}";
+        }
+
+        public string ToHtmlWithIdentifierUrl(INetworkStrategy networkStrategy)
+        {
+            if (Token.IsEgld())
+            {
+                return $"{ToCurrencyString()} {Token.Identifier}";
+            }
+
+            var tokenUrl = Token.ToHtmlLink(networkStrategy);
+            return $"{ToCurrencyString()} {tokenUrl}";
         }
 
         private string ToDenominated()
