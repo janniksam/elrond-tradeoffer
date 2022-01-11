@@ -417,14 +417,16 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if(myBid.State == BidState.ReadyForClaiming)
             {
                 var finalizeTradeUrl = await _transactionGenerator.GenerateFinalizeTradeUrlAsync(offer, myBid);
-                // Todo
                 message += "Your bid was accepted and the created of the offer transfered the tokens to the smart contract.\n\nYou can finalize the trade now.";
                 buttons.Add(new[]
                 {
                     InlineKeyboardButton.WithUrl("🚀 Finalize trade", finalizeTradeUrl),
                     InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
                 });
-                await client.SendTextMessageAsync(chatId, message, replyMarkup: new InlineKeyboardMarkup(buttons),
+                await client.SendTextMessageAsync(
+                    chatId, 
+                    message,
+                    replyMarkup: new InlineKeyboardMarkup(buttons),
                     cancellationToken: ct);
                 return;
             }
