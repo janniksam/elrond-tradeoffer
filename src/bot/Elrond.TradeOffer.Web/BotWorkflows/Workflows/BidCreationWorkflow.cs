@@ -28,7 +28,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IOfferNavigation _offerNavigation;
         private readonly IBotNotifications _botNotifications;
         private readonly INetworkStrategies _networkStrategies;
-        private readonly Func<ITelegramBotClient, long, CancellationToken, Task> _backToStart;
+        private readonly IStartMenuNavigation _startMenuNavigation;
 
         public BidCreationWorkflow(
             IUserRepository userManager,
@@ -39,7 +39,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             IOfferNavigation offerNavigation,
             IBotNotifications botNotifications,
             INetworkStrategies networkStrategies,
-            Func<ITelegramBotClient, long, CancellationToken, Task> backToStart)
+            IStartMenuNavigation startMenuNavigation)
         {
             _userManager = userManager;
             _userContextManager = userContextManager;
@@ -49,7 +49,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             _offerNavigation = offerNavigation;
             _botNotifications = botNotifications;
             _networkStrategies = networkStrategies;
-            _backToStart = backToStart;
+            _startMenuNavigation = startMenuNavigation;
+            _startMenuNavigation = startMenuNavigation;
         }
 
         public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
@@ -69,7 +70,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 if (!Guid.TryParse(offerIdRaw, out var offerId))
                 {
                     await client.SendTextMessageAsync(chatId, "Invalid offer id.", cancellationToken: ct);
-                    await _backToStart(client, chatId, ct);
+                    await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                     return WorkflowResult.Unhandled();
                 }
 
@@ -121,7 +122,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
@@ -144,7 +145,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return;
             }
 
@@ -192,7 +193,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var temporaryBid = _temporaryBidManager.Get(userId);
             if (temporaryBid.OfferId == null)
             {
-                throw new ArgumentException("OfferId is NULL.", nameof(temporaryBid));
+                throw new InvalidOperationException("OfferId is NULL.");
             }
 
             var offer = await _offerRepository.GetAsync(temporaryBid.OfferId.Value, ct);
@@ -316,7 +317,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 

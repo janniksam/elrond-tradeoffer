@@ -3,6 +3,7 @@ using System;
 using Elrond.TradeOffer.Web.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Elrond.TradeOffer.Web.Migrations
 {
     [DbContext(typeof(ElrondTradeOfferDbContext))]
-    partial class ElrondTradeOfferDbContextModelSnapshot : ModelSnapshot
+    [Migration("20220115105342_DbFeatureStates")]
+    partial class DbFeatureStates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -164,9 +166,6 @@ namespace Elrond.TradeOffer.Web.Migrations
 
                     b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime(6)");
-
-                    b.Property<bool>("IsAdmin")
-                        .HasColumnType("tinyint(1)");
 
                     b.Property<int>("Network")
                         .HasColumnType("int");

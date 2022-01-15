@@ -12,7 +12,7 @@ using Telegram.Bot.Types.Enums;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows
 {
-    public class ElrondTradeOfferBotService : IHostedService, IDisposable
+    public sealed class ElrondTradeOfferBotService : IHostedService, IDisposable
     {
         private readonly ITemporaryOfferManager _temporaryOfferManager;
         private readonly ITemporaryBidManager _temporaryBidManager;
@@ -22,6 +22,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         private readonly IUserContextManager _userContextManager;
         private readonly INetworkStrategies _networkStrategies;
         private readonly IBotNotifications _botNotification;
+        private readonly IFeatureStatesManager _featureStatesManager;
         private readonly Func<IOfferRepository> _offerRepositoryFactory;
         private readonly ILogger<ElrondTradeOfferBotService> _logger;
         private readonly Func<IUserRepository> _userRepositoryFactory;
@@ -36,6 +37,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             IUserContextManager userContextManager,
             INetworkStrategies networkStrategies,
             IBotNotifications botNotification,
+            IFeatureStatesManager featureStatesManager,
             Func<IUserRepository> userRepositoryFactory,
             Func<IOfferRepository> offerRepositoryFactory,
             ILogger<ElrondTradeOfferBotService> logger)
@@ -48,6 +50,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             _userContextManager = userContextManager;
             _networkStrategies = networkStrategies;
             _botNotification = botNotification;
+            _featureStatesManager = featureStatesManager;
             _userRepositoryFactory = userRepositoryFactory;
             _offerRepositoryFactory = offerRepositoryFactory;
             _logger = logger;
@@ -122,25 +125,26 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         {
             var userRepository = _userRepositoryFactory();
             var offerRepository = _offerRepositoryFactory();
-            var startmenuWorkflow = new StartMenuWorkflow();
+            var startmenuWorkflow = new StartMenuWorkflow(userRepository, _featureStatesManager);
             var offerListWorkflow = new OfferListWorkflow(
                 userRepository, 
                 offerRepository, 
                 _transactionGenerator, 
                 _elrondApiService, 
                 _botNotification, 
-                _networkStrategies);
+                _networkStrategies,
+                startmenuWorkflow);
 
             var botWorkflows = new IBotProcessor[]
             {
                 startmenuWorkflow,
                 new OfferCreationWorkflow(userRepository, _userContextManager, _temporaryOfferManager, 
-                    offerRepository, _elrondApiService, _networkStrategies, StartMenuWorkflow.StartPage),
+                    offerRepository, _elrondApiService, _networkStrategies, startmenuWorkflow),
                 offerListWorkflow,
                 new BidCreationWorkflow(
                     userRepository, _userContextManager, offerRepository, _temporaryBidManager, 
-                    _elrondApiService, offerListWorkflow, _botNotification, _networkStrategies, 
-                    StartMenuWorkflow.StartPage),
+                    _elrondApiService, offerListWorkflow, _botNotification, _networkStrategies,
+                    startmenuWorkflow),
                 new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager, _networkStrategies),
             };
 
@@ -166,6 +170,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
 
         private Task HandleErrorAsync(ITelegramBotClient client, Exception exception, CancellationToken ct)
         {
+            _logger.LogError(exception, "An unhandled telegram exception has occured");
             return Task.CompletedTask;
         }
 

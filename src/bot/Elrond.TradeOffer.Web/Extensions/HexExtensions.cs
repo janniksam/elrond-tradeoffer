@@ -2,7 +2,6 @@
 using System.Text;
 using Erdcsharp.Cryptography;
 using Erdcsharp.Domain.Helper;
-using Org.BouncyCastle.Asn1;
 
 namespace Elrond.TradeOffer.Web.Extensions
 {
@@ -36,7 +35,7 @@ namespace Elrond.TradeOffer.Web.Extensions
         public static string ToHex(this Guid guid)
         {
             var bytes = guid.ToByteArray();
-            StringBuilder hex = new StringBuilder(bytes.Length * 2);
+            var hex = new StringBuilder(bytes.Length * 2);
             foreach (var @byte in bytes)
             {
                 hex.AppendFormat("{0:x2}", @byte);

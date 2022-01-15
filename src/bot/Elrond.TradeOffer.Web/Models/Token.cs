@@ -1,7 +1,4 @@
-﻿using Elrond.TradeOffer.Web.Network;
-using Elrond.TradeOffer.Web.Utils;
-
-namespace Elrond.TradeOffer.Web.Models;
+﻿namespace Elrond.TradeOffer.Web.Models;
 
 public record Token
 {

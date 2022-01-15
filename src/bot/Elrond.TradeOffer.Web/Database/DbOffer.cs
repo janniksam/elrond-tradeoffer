@@ -1,6 +1,8 @@
-﻿#pragma warning disable CS8618
+﻿using Microsoft.EntityFrameworkCore;
+
 namespace Elrond.TradeOffer.Web.Database;
 
+#pragma warning disable CS8618
 public class DbOffer : BaseEntity
 {
     public DbOffer(
@@ -27,31 +29,40 @@ public class DbOffer : BaseEntity
         TokenAmount = tokenAmount;
     }
 
-    public Guid Id { get; set; }
+    public Guid Id { get; private set; }
     
-    public ElrondNetwork Network { get; set; }
+    public ElrondNetwork Network { get; private set; }
 
-    public long CreatorUserId { get; set; }
+    public long CreatorUserId { get; private set; }
 
-    public long CreatorChatId { get; set; }
+    public long CreatorChatId { get; private set; }
     
-    public string Description { get; set; }
+    public string Description { get; private set; }
 
-    public string TokenIdentifier { get; set; }
+    public string TokenIdentifier { get; private set; }
 
-    public string TokenName { get; set; }
+    public string TokenName { get; private set; }
 
-    public ulong TokenNonce { get; set; }
+    public ulong TokenNonce { get; private set; }
 
-    public int TokenPrecision { get; set; }
+    public int TokenPrecision { get; private set; }
 
-    public string TokenAmount { get; set; }
+    public string TokenAmount { get; private set; }
 
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public virtual IEnumerable<DbBid> Bids { get; set; }
     
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public virtual DbUser? CreatorUser { get; set; }
-    
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    public static void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<DbOffer>()
+            .HasKey(p => p.Id);
+
+        modelBuilder.Entity<DbOffer>()
+            .HasOne(p => p.CreatorUser)
+            .WithMany(b => b.Offers)
+            .HasForeignKey(p => p.CreatorUserId);
+    }
 }

@@ -1,14 +1,20 @@
-﻿namespace Elrond.TradeOffer.Web.Network;
+﻿using Elrond.TradeOffer.Web.Services;
+
+namespace Elrond.TradeOffer.Web.Network;
 
 public class DevnetNetworkStrategy : NetworkStrategy
 {
+    private readonly IFeatureStatesManager _featureStatesManager;
     private readonly string _smartContractAddress;
 
-    public DevnetNetworkStrategy(IConfiguration configuration) :
+    public DevnetNetworkStrategy(IConfiguration configuration, IFeatureStatesManager featureStatesManager) :
         base("https://devnet-wallet.elrond.com", Erdcsharp.Configuration.Network.DevNet)
     {
+        _featureStatesManager = featureStatesManager;
         _smartContractAddress = configuration.GetValue<string>("SmartContractAddressDev");
     }
+
+    public override Task<bool> IsNetworkEnabledAsync(CancellationToken ct) => _featureStatesManager.GetDevNetEnabledAsync(ct);
 
     public override string GetSmartContractAddress()
     {

@@ -64,6 +64,7 @@ builder.Services.AddTransient<IElrondApiService, ElrondApiService>();
 builder.Services.AddTransient<ITransactionGenerator, TransactionGenerator>();
 builder.Services.AddTransient<ITestDataProvider, TestDataProvider>();
 builder.Services.AddTransient<IBotNotifications, BotNotifications>();
+builder.Services.AddSingleton<IFeatureStatesManager, FeatureStatesManager>();
 
 // repositories
 builder.Services.AddTransient<IOfferRepository, SqlOfferRepository>();

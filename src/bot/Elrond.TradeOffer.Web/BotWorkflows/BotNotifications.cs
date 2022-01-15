@@ -80,7 +80,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             await ApiExceptionHelper.RunAndSupressAsync(() =>
                 client.SendTextMessageAsync(
                     offer.CreatorChatId,
-                    $"You trade offer has been cancelled. You claimed back {offer.Amount.ToHtmlWithIdentifierUrl(strategy)}.",
+                    $"You trade offer has been cancelled. You claimed back you {offer.Amount.ToHtmlWithIdentifierUrl(strategy)}.",
                     ParseMode.Html,
                     disableWebPagePreview: true,
                     cancellationToken: ct));

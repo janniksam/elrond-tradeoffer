@@ -6,6 +6,10 @@ public interface INetworkStrategy
 
     bool IsNetworkAvailable();
 
+    Task<bool> IsNetworkEnabledAsync(CancellationToken ct);
+    
+    Task<bool> IsNetworkReadyAsync(CancellationToken ct);
+
     string GetSmartContractAddress();
 
     string GetTransactionUrl(TransactionRequest request, string? callbackUrl = null);

@@ -14,7 +14,6 @@ namespace Elrond.TradeOffer.Web.TestData
         private const long OtherUser1Id = 1;
         private const long OtherUser2Id = 2;
         private const long OtherUser1ChatId = 1;
-        private const long OtherUser2ChatId = 2;
 
         private static readonly Token LkmexToken = Token.Esdt("LKMEX", "LKMEX", 18);
         private static readonly Token UsdcToken = Token.Esdt("USDC-c76f1f", "USDC-c76f1f", 18);

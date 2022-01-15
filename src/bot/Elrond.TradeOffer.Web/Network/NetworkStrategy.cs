@@ -45,7 +45,14 @@ namespace Elrond.TradeOffer.Web.Network
 
         public Erdcsharp.Configuration.Network Network { get; }
 
+        public async Task<bool> IsNetworkReadyAsync(CancellationToken ct)
+        {
+            return IsNetworkAvailable() && await IsNetworkEnabledAsync(ct);
+        }
+
         public bool IsNetworkAvailable() => !string.IsNullOrWhiteSpace(GetSmartContractAddress());
+        
+        public abstract Task<bool> IsNetworkEnabledAsync(CancellationToken ct);
 
         public abstract string GetSmartContractAddress();
     }

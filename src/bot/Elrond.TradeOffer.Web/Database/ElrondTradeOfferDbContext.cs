@@ -14,42 +14,22 @@ public class ElrondTradeOfferDbContext: DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<DbOffer>()
-            .HasKey(p => p.Id);
+        DbOffer.OnModelCreating(modelBuilder);
+        DbBid.OnModelCreating(modelBuilder);
+        DbUser.OnModelCreating(modelBuilder);
+        DbFeatureState.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<DbOffer>()
+        EnableRowVersion<DbBid>(modelBuilder);
+        EnableRowVersion<DbOffer>(modelBuilder);
+        EnableRowVersion<DbUser>(modelBuilder);
+        EnableRowVersion<DbFeatureState>(modelBuilder);
+    }
+
+    private static void EnableRowVersion<T>(ModelBuilder modelBuilder) where T : BaseEntity
+    {
+        modelBuilder.Entity<T>()
             .Property(p => p.RowVersion)
             .IsRowVersion();
-        
-        modelBuilder.Entity<DbBid>()
-            .HasKey(b => new { b.OfferId, b.CreatorUserId });
-
-        modelBuilder.Entity<DbBid>()
-            .Property(p => p.RowVersion)
-            .IsRowVersion();
-
-        modelBuilder.Entity<DbBid>()
-            .HasOne(p => p.Offer)
-            .WithMany(b => b.Bids)
-            .HasForeignKey(p => p.OfferId);
-
-        modelBuilder.Entity<DbOffer>()
-            .HasOne(p => p.CreatorUser)
-            .WithMany(b => b.Offers)
-            .HasForeignKey(p => p.CreatorUserId);
-
-
-        modelBuilder.Entity<DbBid>()
-            .HasOne(p => p.CreatorUser)
-            .WithMany(b => b.Bids)
-            .HasForeignKey(p => p.CreatorUserId);
-
-        modelBuilder.Entity<DbUser>()
-            .HasKey(p => p.Id);
-        
-        modelBuilder.Entity<DbUser>()
-            .Property(c => c.Id)
-            .ValueGeneratedNever();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = new CancellationToken())
@@ -80,4 +60,6 @@ public class ElrondTradeOfferDbContext: DbContext
     public virtual DbSet<DbBid> Bids => Set<DbBid>();
 
     public virtual DbSet<DbUser> Users => Set<DbUser>();
+
+    public virtual DbSet<DbFeatureState> FeatureStates => Set<DbFeatureState>();
 }

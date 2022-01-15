@@ -1,6 +1,9 @@
-﻿#pragma warning disable CS8618
+﻿using Microsoft.EntityFrameworkCore;
+
 namespace Elrond.TradeOffer.Web.Database;
 
+// ReSharper disable AutoPropertyCanBeMadeGetOnly.Local
+#pragma warning disable CS8618
 public class DbBid : BaseEntity
 {
     public DbBid(
@@ -25,23 +28,23 @@ public class DbBid : BaseEntity
         TokenAmount = tokenAmount;
     }
 
-    public Guid OfferId { get; set; }
+    public Guid OfferId { get; private set; }
 
-    public long CreatorUserId { get; set; }
+    public long CreatorUserId { get; private set; }
     
-    public long CreatorChatId { get; set; }
+    public long CreatorChatId { get; private set; }
     
     public BidState State { get; set; }
 
-    public string TokenIdentifier { get; set; }
+    public string TokenIdentifier { get; private set; }
 
-    public string TokenName { get; set; }
+    public string TokenName { get; private set; }
 
-    public ulong TokenNonce { get; set; }
+    public ulong TokenNonce { get; private set; }
 
-    public int TokenPrecision { get; set; }
+    public int TokenPrecision { get; private set; }
 
-    public string TokenAmount { get; set; }
+    public string TokenAmount { get; private set; }
 
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public virtual DbUser? CreatorUser { get; set; }
@@ -49,5 +52,19 @@ public class DbBid : BaseEntity
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public virtual DbOffer Offer { get; set; }
 
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    public static void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<DbBid>()
+            .HasKey(b => new { b.OfferId, b.CreatorUserId });
+
+        modelBuilder.Entity<DbBid>()
+            .HasOne(p => p.Offer)
+            .WithMany(b => b.Bids)
+            .HasForeignKey(p => p.OfferId);
+
+        modelBuilder.Entity<DbBid>()
+            .HasOne(p => p.CreatorUser)
+            .WithMany(b => b.Bids)
+            .HasForeignKey(p => p.CreatorUserId);
+    }
 }

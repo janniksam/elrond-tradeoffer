@@ -27,6 +27,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IElrondApiService _elrondApiService;
         private readonly IBotNotifications _botNotifications;
         private readonly INetworkStrategies _networkStrategies;
+        private readonly IStartMenuNavigation _startMenuNavigation;
 
         public OfferListWorkflow(
             IUserRepository userManager, 
@@ -34,7 +35,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             ITransactionGenerator transactionGenerator,
             IElrondApiService elrondApiService,
             IBotNotifications botNotifications,
-            INetworkStrategies networkStrategies)
+            INetworkStrategies networkStrategies,
+            IStartMenuNavigation startMenuNavigation)
         {
             _userManager = userManager;
             _offerRepository = offerRepository;
@@ -42,6 +44,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             _elrondApiService = elrondApiService;
             _botNotifications = botNotifications;
             _networkStrategies = networkStrategies;
+            _startMenuNavigation = startMenuNavigation;
         }
 
         public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
@@ -193,7 +196,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             return Task.FromResult(WorkflowResult.Unhandled());
         }
 
-        private async Task DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
+        private static async Task  DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
         {
             await client.DeleteMessageAsync(chatId, previousMessageId, ct);
         }
@@ -362,7 +365,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
                     if (acceptedOrPendingBid.State == BidState.CancelInitiated)
                     {
-                        await ReclaimResponseAsync(client, chatId, ct, message, offer);
+                        await ReclaimResponseAsync(client, chatId, message, offer, ct);
                         return;
                     }
 
@@ -416,13 +419,10 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (myBid.State == BidState.Declined)
             {
                 await BidDeclinedResponseAsync(client, chatId, message, offer, ct);
-                return;
             }
         }
 
-        private async Task ReclaimResponseAsync(ITelegramBotClient client, long chatId, CancellationToken ct, string message,
-            Offer offer)
-        {
+        private async Task ReclaimResponseAsync(ITelegramBotClient client, long chatId, string message, Offer offer, CancellationToken ct) {
             message +=
                 "Cancellation of the order was requested.\n\n" +
                 "Since you already sent your tokens to the smart contract, you can reclaim them now:";
@@ -530,12 +530,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 $"You have accepted the bid for your {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()} and sent your tokens to the smart contract.\n\n" +
                 "Please wait for the other party to finalize the exchange or cancel your offer to get back your tokens.";
 
-            var buttons = new List<InlineKeyboardButton[]>();
-            buttons.Add(new[]
+            var buttons = new List<InlineKeyboardButton[]>
             {
-                InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
-            });
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                }
+            };
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
@@ -695,6 +697,28 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         public async Task ShowOffersAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
+            if (elrondUser.Address == null)
+            {
+                await client.SendTextMessageAsync(
+                    chatId,
+                    "You have set an address before you continue.",
+                    cancellationToken: ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
+                return;
+            }
+
+            var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
+            var networkReady = await networkStrategy.IsNetworkReadyAsync(ct);
+            if (!networkReady)
+            {
+                await client.SendTextMessageAsync(
+                    chatId,
+                    $"The network {elrondUser.Network} is currently not available.",
+                    cancellationToken: ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
+                return;
+            }
+
             var offers = (await _offerRepository.GetAllOffersAsync(elrondUser.Network, ct))
                 .OrderByDescending(p => p.CreatorUserId == userId)
                 .ThenByDescending(p => p.CreatedOn)
