@@ -339,7 +339,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             var strategy = _networkStrategies.GetStrategy(offer.Network);
 
-            var message = $"Details for offer {offer.Amount.ToHtmlWithIdentifierUrl(strategy)}\n\n" +
+            var message = $"Details for offer {offer.Amount.ToHtmlWithTickerUrl(strategy)}\n\n" +
                           $"Description: {offer.Description}\n\n";
 
             var offerBids = await _offerRepository.GetBidsAsync(offerId, ct);

@@ -133,7 +133,7 @@ namespace Elrond.TradeOffer.Web.Services
         private static string CreateDataInitiateTradeForEgld(Bid bid)
         {
             var offerId = bid.OfferId.ToHex();
-            var tokenWant = bid.Amount.Token.Identifier.ToHex();
+            var tokenWant = bid.Amount.Token.Ticker.ToHex();
             var amountWant = bid.Amount.Value.ToHex();
             var nonceWant = bid.Amount.Token.Nonce.ToHex().EmptyIfZero();
             
@@ -143,7 +143,7 @@ namespace Elrond.TradeOffer.Web.Services
         private static string CreateDataFinalizeTradeForEgld(Offer offer)
         {
             var offerId = offer.Id.ToHex();
-            var tokenWant = offer.Amount.Token.Identifier.ToHex();
+            var tokenWant = offer.Amount.Token.Ticker.ToHex();
             var amountWant = offer.Amount.Value.ToHex();
             var nonceWant = offer.Amount.Token.Nonce.ToHex().EmptyIfZero();
 
@@ -154,11 +154,11 @@ namespace Elrond.TradeOffer.Web.Services
         {
             var offerId = offer.Id.ToHex();
             var receiver = scAddress.FromBech32ToHex();
-            var tokenOffered = offer.Amount.Token.Identifier.ToHex();
+            var tokenOffered = offer.Amount.Token.Ticker.ToHex();
             var amountOffered = offer.Amount.Value.ToHex();
             var nonceOffered = offer.Amount.Token.Nonce.ToHex().EmptyIfZero();
             var functionName = "offer".ToHex();
-            var tokenWant = want.Token.Identifier.ToHex();
+            var tokenWant = want.Token.Ticker.ToHex();
             var amountWant = want.Value.ToHex();
             var nonceWant = want.Token.Nonce.ToHex().EmptyIfZero();
 
@@ -169,11 +169,11 @@ namespace Elrond.TradeOffer.Web.Services
         {
             var offerId = acceptedBid.OfferId.ToHex();
             var receiver = scAddress.FromBech32ToHex();
-            var tokenBid = acceptedBid.Amount.Token.Identifier.ToHex();
+            var tokenBid = acceptedBid.Amount.Token.Ticker.ToHex();
             var amountBid = acceptedBid.Amount.Value.ToHex();
             var nonceBid = acceptedBid.Amount.Token.Nonce.ToHex().EmptyIfZero();
             var functionName = "accept_offer".ToHex();
-            var tokenWant = want.Token.Identifier.ToHex();
+            var tokenWant = want.Token.Ticker.ToHex();
             var amountWant = want.Value.ToHex();
             var nonceWant = want.Token.Nonce.ToHex().EmptyIfZero();
 
