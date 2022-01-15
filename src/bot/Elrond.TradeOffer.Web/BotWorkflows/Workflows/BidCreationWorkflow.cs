@@ -158,7 +158,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Incomplete order. Try again.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOffersAsync(client, userId, chatId, ct);
+                await _offerNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return;
             }
 
@@ -172,7 +172,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Bid cannot be placed/updated. Try again.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOffersAsync(client, userId, chatId, ct);
+                await _offerNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return;
             }
 
@@ -203,7 +203,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Offer not found.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOffersAsync(client, userId, chatId, ct);
+                await _offerNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return WorkflowResult.Handled();
             }
 

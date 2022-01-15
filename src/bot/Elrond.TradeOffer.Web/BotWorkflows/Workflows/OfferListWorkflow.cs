@@ -1,5 +1,7 @@
-﻿using Elrond.TradeOffer.Web.BotWorkflows.Bids;
+﻿using System.Text.RegularExpressions;
+using Elrond.TradeOffer.Web.BotWorkflows.Bids;
 using Elrond.TradeOffer.Web.BotWorkflows.Offers;
+using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.Database;
 using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
@@ -19,8 +21,11 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private const string AcceptBidQueryPrefix = "ABid_";
         private const string DeclineBidQueryPrefix = "DBid_";
         private const string RemoveBidQueryPrefix = "RemoveBid_";
-        private const string BackToShowOffersQuery = "BackToShowOffer";
         private const string RefreshInitiateStatusQueryPrefix = "RefreshInitiateStatus_";
+        private const string SearchOfferQuery = "SearchOffers";
+        private const string ShowMyOfferQuery = "ShowMyOffers";
+        private const int MaxOffersPerPage = 10;
+
         private readonly IUserRepository _userManager;
         private readonly IOfferRepository _offerRepository;
         private readonly ITransactionGenerator _transactionGenerator;
@@ -28,6 +33,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IBotNotifications _botNotifications;
         private readonly INetworkStrategies _networkStrategies;
         private readonly IStartMenuNavigation _startMenuNavigation;
+        private readonly IUserContextManager _userContextManager;
 
         public OfferListWorkflow(
             IUserRepository userManager, 
@@ -36,6 +42,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             IElrondApiService elrondApiService,
             IBotNotifications botNotifications,
             INetworkStrategies networkStrategies,
+            IUserContextManager userContextManager,
             IStartMenuNavigation startMenuNavigation)
         {
             _userManager = userManager;
@@ -45,6 +52,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             _botNotifications = botNotifications;
             _networkStrategies = networkStrategies;
             _startMenuNavigation = startMenuNavigation;
+            _userContextManager = userContextManager;
         }
 
         public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
@@ -62,10 +70,23 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (query.Data == CommonQueries.ViewOffersQuery)
             {
                 await DeleteMessageAsync(client, chatId, previousMessageId, ct);
-                await ShowOffersAsync(client, userId, chatId, ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return WorkflowResult.Handled();
             }
 
+            if (query.Data == ShowMyOfferQuery)
+            {
+                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.OwnOffers(userId), ct);
+                return WorkflowResult.Handled();
+            }
+
+            if (query.Data == SearchOfferQuery)
+            {
+                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                return await EnterSearchTermAsync(client, chatId, ct);
+            }
+            
             if (query.Data.StartsWith(CommonQueries.ShowOfferQueryPrefix))
             {
                 var offerIdRaw = query.Data[CommonQueries.ShowOfferQueryPrefix.Length..];
@@ -181,19 +202,63 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return WorkflowResult.Handled();
             }
 
-            if (query.Data == BackToShowOffersQuery)
+            return WorkflowResult.Unhandled();
+        }
+
+        private async Task<WorkflowResult> EnterSearchTermAsync(ITelegramBotClient client, long chatId, CancellationToken ct)
+        {
+            await client.SendTextMessageAsync(
+                chatId,
+                "Please enter a search term: (e.g. \"mex\" or \"ride-7d18e9\")",
+                cancellationToken: ct);
+
+            return WorkflowResult.Handled(UserContext.EnterOfferSearchTerm);
+        }
+
+        public async Task<WorkflowResult> ProcessMessageAsync(ITelegramBotClient client, Message message, CancellationToken ct)
+        {
+            if (message.From == null)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
-                await ShowOffersAsync(client, userId, chatId, ct);
-                return WorkflowResult.Handled();
+                return WorkflowResult.Unhandled();
+            }
+
+            if (message.Type != MessageType.Text)
+            {
+                return WorkflowResult.Unhandled();
+            }
+
+            var messageText = message.Text;
+            var userId = message.From.Id;
+            var chatId = message.Chat.Id;
+            var context = _userContextManager.Get(message.From.Id);
+            if (context == UserContext.EnterOfferSearchTerm)
+            {
+                return await SearchOffersAsync(client, userId, chatId, messageText, ct);
             }
 
             return WorkflowResult.Unhandled();
         }
 
-        public Task<WorkflowResult> ProcessMessageAsync(ITelegramBotClient client, Message message, CancellationToken ct)
+        private async Task<WorkflowResult> SearchOffersAsync(ITelegramBotClient client, long userId, long chatId, string? messageText, CancellationToken ct)
         {
-            return Task.FromResult(WorkflowResult.Unhandled());
+            if (string.IsNullOrWhiteSpace(messageText))
+            {
+                await client.SendTextMessageAsync(chatId, "You need to supply a search term.", cancellationToken: ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
+                return WorkflowResult.Handled();
+            }
+
+            var regEx = new Regex("^[A-Za-z0-9\\-]+$");
+            if (!regEx.IsMatch(messageText))
+            {
+                await client.SendTextMessageAsync(chatId, 
+                    "The search term only allows alphanumeric characters and the \"-\"-character.", cancellationToken: ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
+                return WorkflowResult.Handled();
+            }
+
+            await ShowOffersAsync(client, userId, chatId, OfferFilter.WithSearchTerm(messageText), ct);
+            return WorkflowResult.Handled();
         }
 
         private static async Task  DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
@@ -325,7 +390,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             await client.SendTextMessageAsync(chatId,
                 "Your offer was cancelled successfully.",
                 cancellationToken: ct);
-            await ShowOffersAsync(client, userId, chatId, ct);
+            await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
         }
 
         public async Task ShowOfferAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
@@ -437,7 +502,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithUrl("Reclaim tokens", reclaimUrl),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -463,7 +528,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -498,7 +563,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -520,7 +585,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -543,7 +608,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -574,7 +639,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 });
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
@@ -592,7 +657,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -610,7 +675,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Place bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -633,7 +698,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             });
             buttons.Add(new[]
             {
-                InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
             });
 
             await client.SendTextMessageAsync(chatId, baseMessage, ParseMode.Html,
@@ -654,7 +719,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 },
                 new[]
                 {
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -673,7 +738,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("Place new bid", $"{CommonQueries.PlaceBidQueryPrefix}{offer.Id}"),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -696,7 +761,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 new[]
                 {
                     InlineKeyboardButton.WithUrl("🚀 Finalize trade", finalizeTradeUrl),
-                    InlineKeyboardButton.WithCallbackData("Back", BackToShowOffersQuery)
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.ViewOffersQuery)
                 }
             };
 
@@ -710,7 +775,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 cancellationToken: ct);
         }
 
-        public async Task ShowOffersAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
+        public async Task ShowOffersAsync(ITelegramBotClient client, long userId, long chatId, OfferFilter filter, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
             if (elrondUser.Address == null)
@@ -735,16 +800,12 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return;
             }
 
-            var offers = (await _offerRepository.GetAllOffersAsync(elrondUser.Network, ct))
-                .OrderByDescending(p => p.CreatorUserId == userId)
-                .ThenByDescending(p => p.CreatedOn)
-                .Take(10)
-                .ToArray();
+            var offers = await _offerRepository.GetOffersAsync(elrondUser.Network, filter, MaxOffersPerPage, ct);
 
             var buttons = new List<InlineKeyboardButton[]>();
             
             var message = $"The following offers were found ({elrondUser.Network}, latest 10):";
-            if (offers.Length == 0)
+            if (offers.Count == 0)
             {
                 message += "\n\nNo offers were found.";
             }
@@ -759,7 +820,19 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 }
             }
 
-            buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery) });
+            if (filter.IsUnfiltered)
+            {
+                buttons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("🔍 Search for term", SearchOfferQuery),
+                    InlineKeyboardButton.WithCallbackData("🙋 Show my offers", ShowMyOfferQuery)
+                });
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery) });
+            }
+            else
+            {
+                buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("Back to unfiltered list", CommonQueries.ViewOffersQuery) });
+            }
 
             await client.SendTextMessageAsync(
                 chatId, 
@@ -794,7 +867,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (offer == null)
             {
                 await client.SendTextMessageAsync(chatId, "Offer was not found.", cancellationToken: ct);
-                await ShowOffersAsync(client, userId, chatId, ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return;
             }
 
@@ -802,7 +875,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (bid == null)
             {
                 await client.SendTextMessageAsync(chatId, "Bid was not found.", cancellationToken: ct);
-                await ShowOffersAsync(client, userId, chatId, ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return;
             }
 
@@ -825,7 +898,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (bid == null)
             {
                 await client.SendTextMessageAsync(chatId, "Bid was not found.", cancellationToken: ct);
-                await ShowOffersAsync(client, userId, chatId, ct);
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return;
             }
 
@@ -855,13 +928,13 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private async Task NoOfferFoundAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
         {
             await client.SendTextMessageAsync(chatId, "Offer was not found.", cancellationToken: ct);
-            await ShowOffersAsync(client, userId, chatId, ct);
+            await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
         }
 
         private async Task NoAcceptedBidAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
         {
             await client.SendTextMessageAsync(chatId, "Offer has no accepted bid.", cancellationToken: ct);
-            await ShowOffersAsync(client, userId, chatId, ct);
+            await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
         }
 
         private static async Task<WorkflowResult> InvalidOfferIdAsync(ITelegramBotClient client, long chatId, CancellationToken ct)

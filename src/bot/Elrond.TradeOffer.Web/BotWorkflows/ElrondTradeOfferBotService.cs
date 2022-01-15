@@ -133,6 +133,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                 _elrondApiService, 
                 _botNotification, 
                 _networkStrategies,
+                _userContextManager,
                 startmenuWorkflow);
 
             var botWorkflows = new IBotProcessor[]

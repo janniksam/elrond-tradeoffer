@@ -4,6 +4,7 @@ using Elrond.TradeOffer.Web.BotWorkflows.User;
 using Elrond.TradeOffer.Web.Database;
 using Elrond.TradeOffer.Web.Models;
 using Elrond.TradeOffer.Web.Repositories;
+using Elrond.TradeOffer.Web.Services;
 
 namespace Elrond.TradeOffer.Web.TestData
 {
@@ -22,20 +23,26 @@ namespace Elrond.TradeOffer.Web.TestData
 
         private readonly IOfferRepository _offerRepository;
         private readonly IUserRepository _userManager;
+        private readonly IFeatureStatesManager _statesManager;
 
         public TestDataProvider(
             Func<IOfferRepository> offerManager,
-            IUserRepository userManager)
+            IUserRepository userManager,
+            IFeatureStatesManager statesManager)
         {
             _offerRepository = offerManager();
             _userManager = userManager;
+            _statesManager = statesManager;
         }
 
         public async Task ApplyAsync()
-        { 
+        {
             var myUser = await ApplyUserAsync(MyUserId, "erd1npvd6gwtyvem63vngmjvruk7frlld20fmzkzy0a4f80t3cye75pqw5fwsp");
             var anotherUser = await ApplyUserAsync(OtherUser1Id, "anotherErd");
-            
+
+            await _statesManager.SetDevNetStateAsync(true, MyUserId, CancellationToken.None);
+            await _statesManager.SetTestNetStateAsync(true, MyUserId, CancellationToken.None);
+
             await ApplyOffer(
                 myUser, 
                 TokenAmount.From(1000000m, LkmexToken), 
@@ -160,7 +167,8 @@ namespace Elrond.TradeOffer.Web.TestData
 
         private static decimal Million(decimal input) => input * 1000000;
 
-        private async Task<ElrondUser> ApplyUserAsync(long userId, string address, ElrondNetwork network = ElrondNetwork.Devnet, CancellationToken ct = default)
+        private async Task<ElrondUser> ApplyUserAsync(
+            long userId, string address, ElrondNetwork network = ElrondNetwork.Devnet, CancellationToken ct = default)
         {
             var user = await _userManager.GetAsync(userId, CancellationToken.None);
             user.Address = address;

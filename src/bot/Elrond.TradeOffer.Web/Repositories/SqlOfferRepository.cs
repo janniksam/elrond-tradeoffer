@@ -71,10 +71,24 @@ namespace Elrond.TradeOffer.Web.Repositories
             return Offer.From(dbOffer);
         }
 
-        public async Task<IReadOnlyCollection<Offer>> GetAllOffersAsync(ElrondNetwork network, CancellationToken ct)
+        public async Task<IReadOnlyCollection<Offer>> GetOffersAsync(ElrondNetwork network, OfferFilter filter, int maxAmount, CancellationToken ct)
         {
             await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
-            var dbOffers = await dbContext.Offers.Where(p => p.Network == network).ToArrayAsync(ct);
+            
+            var query = dbContext.Offers.Where(p => p.Network == network);
+            if (filter.OnlyMyOwn)
+            {
+                query = query.Where(p => p.CreatorUserId == filter.UserId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+            {
+                query = query.Where(p =>
+                    EF.Functions.Like(p.TokenName, $"%{filter.SearchTerm}%") ||
+                    EF.Functions.Like(p.TokenTicker, $"%{filter.SearchTerm}%"));
+            }
+
+            var dbOffers = await query.OrderByDescending(p => p.CreatedOn).Take(maxAmount).ToArrayAsync(ct);
             return dbOffers.Select(Offer.From).ToArray();
         }
 
