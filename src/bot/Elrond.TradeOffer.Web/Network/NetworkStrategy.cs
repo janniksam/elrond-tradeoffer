@@ -22,6 +22,8 @@ namespace Elrond.TradeOffer.Web.Network
 
         public abstract string GetApiGateway();
 
+        public abstract string GetNftUrlFormat();
+
         private static string BuildTransactionUrl(TransactionRequest request, string? callbackUrl)
         {
             StringBuilder builder = new($"receiver={request.Receiver}&value={request.Value.Value}");

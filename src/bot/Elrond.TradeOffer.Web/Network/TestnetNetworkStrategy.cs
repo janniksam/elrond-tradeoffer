@@ -26,6 +26,11 @@ public class TestnetNetworkStrategy : NetworkStrategy
         return "https://testnet-explorer.elrond.com/tokens/{0}";
     }
 
+    public override string GetNftUrlFormat()
+    {
+        return "https://testnet-explorer.elrond.com/nfts/{0}";
+    }
+
     public override string GetApiGateway()
     {
         return "https://testnet-api.elrond.com";

@@ -17,4 +17,6 @@ public interface INetworkStrategy
     string GetTokenUrlFormat();
 
     string GetApiGateway();
+    
+    string GetNftUrlFormat();
 }

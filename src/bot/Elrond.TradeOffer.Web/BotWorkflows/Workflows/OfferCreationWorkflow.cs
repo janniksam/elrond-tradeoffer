@@ -343,7 +343,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 }
 
                 var message = $"You're trying to create an offer on the {elrondUser.Network}.\n" +
-                              $"You chose the token {temporaryOffer.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in you wallet).\n\n" +
+                              $"You chose the token {temporaryOffer.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in your wallet).\n\n" +
                               $"How many {temporaryOffer.Token.Identifier} would you like to offer?";
 
                 await client.SendTextMessageAsync(

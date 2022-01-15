@@ -12,8 +12,17 @@ public static class HtmlUrl
 
     public static string ToHtmlLink(this Token token, INetworkStrategy networkStrategy)
     {
-        var tokenUrlFormat = networkStrategy.GetTokenUrlFormat();
-        var tokenUrl = string.Format(tokenUrlFormat, token.Identifier);
+        string urlFormat;
+        if (token.IsNft())
+        {
+            urlFormat = networkStrategy.GetNftUrlFormat();
+        }
+        else
+        {
+            urlFormat = networkStrategy.GetTokenUrlFormat();
+        }
+
+        var tokenUrl = string.Format(urlFormat, token.Identifier);
         return Create(token.Identifier, tokenUrl);
     }
 }

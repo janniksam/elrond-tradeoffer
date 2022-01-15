@@ -346,9 +346,9 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             if (offer.CreatorUserId == userId)
             {
-                var createdBids = offerBids.Where(p => p.State is BidState.Created).Take(3).ToArray();
                 var acceptedOrPendingBid = offerBids.FirstOrDefault(
                     p => p.State is BidState.Accepted or BidState.TradeInitiated or BidState.ReadyForClaiming or BidState.CancelInitiated);
+
                 if (acceptedOrPendingBid != null)
                 {
                     if (acceptedOrPendingBid.State == BidState.Accepted)
@@ -376,17 +376,20 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     }
 
                     await AcceptedAndSendToScResponseAsync(client, message, chatId, acceptedOrPendingBid, offer, ct);
-                }
-                else if (createdBids.Length > 0)
-                {
-                    await BidReceivedResponseAsync(client, message, chatId, createdBids, offer, ct);
-                }
-                else
-                {
-                    await NoBidsResponseCreatorAsync(client, message, chatId, offer, ct);
                     return;
                 }
 
+                var createdBids = offerBids
+                    .Where(p => p.State is BidState.Created)
+                    .OrderByDescending(p => p.CreatedOn)
+                    .Take(3).ToArray();
+                if (createdBids.Length > 0)
+                {
+                    await BidReceivedResponseAsync(client, message, chatId, createdBids, offer, ct);
+                    return;
+                }
+
+                await NoBidsResponseCreatorAsync(client, message, chatId, offer, ct);
                 return;
             }
 
@@ -422,7 +425,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
         }
 
-        private async Task ReclaimResponseAsync(ITelegramBotClient client, long chatId, string message, Offer offer, CancellationToken ct) {
+        private async Task ReclaimResponseAsync(ITelegramBotClient client, long chatId, string message, Offer offer, CancellationToken ct) 
+        {
             message +=
                 "Cancellation of the order was requested.\n\n" +
                 "Since you already sent your tokens to the smart contract, you can reclaim them now:";
@@ -439,6 +443,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true,
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -463,10 +468,11 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             };
 
             await client.SendTextMessageAsync(
-                chatId, 
-                message, 
+                chatId,
+                message,
                 ParseMode.Html,
                 disableWebPagePreview: true,
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -498,6 +504,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true,
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -519,6 +526,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -541,6 +549,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -570,6 +579,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -588,6 +598,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -605,6 +616,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -626,6 +638,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, baseMessage, ParseMode.Html,
                 disableWebPagePreview: true,
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -647,6 +660,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, baseMessage, ParseMode.Html,
                 disableWebPagePreview: true,
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -665,6 +679,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await client.SendTextMessageAsync(chatId, message, ParseMode.Html,
                 disableWebPagePreview: true, 
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }
@@ -690,6 +705,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 message,
                 ParseMode.Html,
                 disableWebPagePreview: true,
+                disableNotification: true,
                 replyMarkup: new InlineKeyboardMarkup(buttons),
                 cancellationToken: ct);
         }

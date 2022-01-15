@@ -26,6 +26,11 @@ public class DevnetNetworkStrategy : NetworkStrategy
         return "https://devnet-explorer.elrond.com/tokens/{0}";
     }
 
+    public override string GetNftUrlFormat()
+    {
+        return "https://devnet-explorer.elrond.com/nfts/{0}";
+    }
+
     public override string GetApiGateway()
     {
         return "https://devnet-api.elrond.com";

@@ -14,10 +14,10 @@ public class TransactionRequest
         Nonce = nonce;
     }
 
-    public string Receiver { get; set; }
-    public TokenAmount Value { get; set; }
+    public string Receiver { get; }
+    public TokenAmount Value { get; }
+    public int GasPrice { get; }
+    public string Data { get; }
+    public long? Nonce { get; }
     public int GasLimit { get; set; }
-    public int GasPrice { get; set; }
-    public string Data { get; set; }
-    public long? Nonce { get; set; }
 }
