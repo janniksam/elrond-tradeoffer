@@ -44,5 +44,13 @@ public record Token
 
     public static Token Nft(string name, string ticker, int decimalPrecision, ulong nonce) => new(name, ticker, nonce, decimalPrecision);
 
-    public override string ToString() => $"{Name} ({Ticker})";
+    public override string ToString()
+    {
+        if (IsEgld())
+        {
+            return Name;
+        }
+
+        return $"{Name} ({Ticker})";
+    }
 }
