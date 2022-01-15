@@ -546,8 +546,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         {
             message +=
                 "You have initiated the trade.\n" +
-                $"You need to send your {acceptedOrPendingBid.Amount.ToCurrencyStringWithIdentifier()} to the smart contract now.\n" +
-                "Have you already have sent the tokens? Press \"Refresh transaction status\" to check for new status.";
+                $"You need to send your {offer.Amount.ToCurrencyStringWithIdentifier()} to the smart contract now.\n\n" +
+                "You have already sent the tokens? Press \"Refresh transaction status\" to check for a new status.";
             var sendOfferTokensUrl = await _transactionGenerator.GenerateInitiateTradeUrlAsync(offer, acceptedOrPendingBid);
             var buttons = new List<InlineKeyboardButton[]>
             {

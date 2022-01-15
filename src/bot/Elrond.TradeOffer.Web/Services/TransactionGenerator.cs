@@ -93,7 +93,7 @@ namespace Elrond.TradeOffer.Web.Services
             {
                 var data = CreateDataFinalizeTradeForEsdt(receiver, acceptedBid, offer.Amount);
                 request = new TransactionRequest(
-                    elrondUser.Address,
+                    receiver,
                     TokenAmount.From(0, Token.Egld()),
                     minGasLimit,
                     minGasPrice,
