@@ -47,6 +47,6 @@ public class Bid
             dbBid.CreatedOn,
             dbBid.UpdatedOn,
             TokenAmount.From(dbBid.TokenAmount,
-                new Token(dbBid.TokenName, dbBid.TokenTicker, dbBid.TokenNonce, dbBid.TokenPrecision)));
+                new Token(dbBid.TokenName, dbBid.TokenId, dbBid.TokenNonce, dbBid.TokenPrecision)));
     }
 }

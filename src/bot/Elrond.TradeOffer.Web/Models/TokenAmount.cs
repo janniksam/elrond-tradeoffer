@@ -37,7 +37,7 @@ namespace Elrond.TradeOffer.Web.Models
             return $"{ToCurrencyString()} {Token.Identifier}";
         }
 
-        public string ToHtmlWithTickerUrl(INetworkStrategy networkStrategy)
+        public string ToHtmlUrl(INetworkStrategy networkStrategy)
         {
             if (Token.IsEgld())
             {

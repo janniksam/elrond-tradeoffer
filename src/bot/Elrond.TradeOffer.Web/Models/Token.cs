@@ -8,7 +8,7 @@ public record Token
 
     public Token(
         string name,
-        string ticker, 
+        string id, 
         ulong nonce,
         int decimalPrecision) 
     {
@@ -18,15 +18,15 @@ public record Token
         }
 
         Name = name;
-        Ticker = ticker;
+        Id = id;
         Nonce = nonce;
         DecimalPrecision = decimalPrecision;
-        Identifier = Nonce == 0 ? Ticker : $"{Ticker}-{Nonce.ToHex()}";
+        Identifier = Nonce == 0 ? Id : $"{Id}-{Nonce.ToHex()}";
     }
 
     public string Name { get; }
 
-    public string Ticker { get; }
+    public string Id { get; }
     
     public ulong Nonce { get; }
 
@@ -34,7 +34,7 @@ public record Token
 
     public string Identifier { get; }
 
-    public bool IsEgld() => Ticker == EgldTicker;
+    public bool IsEgld() => Id == EgldTicker;
 
     public bool IsNft() => DecimalPrecision == 0 && Nonce != 0;
 
@@ -51,6 +51,6 @@ public record Token
             return Name;
         }
 
-        return $"{Name} ({Ticker})";
+        return $"{Name} ({Id})";
     }
 }

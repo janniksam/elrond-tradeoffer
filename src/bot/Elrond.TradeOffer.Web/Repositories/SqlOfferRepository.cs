@@ -41,7 +41,7 @@ namespace Elrond.TradeOffer.Web.Repositories
                 user.UserId,
                 chatId,
                 temporaryOffer.Description,
-                temporaryOffer.Token.Ticker,
+                temporaryOffer.Token.Id,
                 temporaryOffer.Token.Name,
                 temporaryOffer.Token.Nonce,
                 temporaryOffer.Token.DecimalPrecision,
@@ -85,7 +85,7 @@ namespace Elrond.TradeOffer.Web.Repositories
             {
                 query = query.Where(p =>
                     EF.Functions.Like(p.TokenName, $"%{filter.SearchTerm}%") ||
-                    EF.Functions.Like(p.TokenTicker, $"%{filter.SearchTerm}%"));
+                    EF.Functions.Like(p.TokenId, $"%{filter.SearchTerm}%"));
             }
 
             var dbOffers = await query.OrderByDescending(p => p.CreatedOn).Take(maxAmount).ToArrayAsync(ct);
@@ -121,7 +121,7 @@ namespace Elrond.TradeOffer.Web.Repositories
                 temporaryBid.CreatorUserId, 
                 chatId, 
                 temporaryBid.BidState,
-                temporaryBid.Token.Ticker,
+                temporaryBid.Token.Id,
                 temporaryBid.Token.Name,
                 temporaryBid.Token.Nonce,
                 temporaryBid.Token.DecimalPrecision,

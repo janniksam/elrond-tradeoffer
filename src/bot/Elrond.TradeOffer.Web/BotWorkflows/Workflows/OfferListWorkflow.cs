@@ -30,7 +30,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IOfferRepository _offerRepository;
         private readonly ITransactionGenerator _transactionGenerator;
         private readonly IElrondApiService _elrondApiService;
-        private readonly IBotNotifications _botNotifications;
+        private readonly IBotNotificationsHelper _botNotificationsHelper;
         private readonly INetworkStrategies _networkStrategies;
         private readonly IStartMenuNavigation _startMenuNavigation;
         private readonly IUserContextManager _userContextManager;
@@ -40,7 +40,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             IOfferRepository offerRepository,
             ITransactionGenerator transactionGenerator,
             IElrondApiService elrondApiService,
-            IBotNotifications botNotifications,
+            IBotNotificationsHelper botNotificationsHelper,
             INetworkStrategies networkStrategies,
             IUserContextManager userContextManager,
             IStartMenuNavigation startMenuNavigation)
@@ -49,7 +49,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             _offerRepository = offerRepository;
             _transactionGenerator = transactionGenerator;
             _elrondApiService = elrondApiService;
-            _botNotifications = botNotifications;
+            _botNotificationsHelper = botNotificationsHelper;
             _networkStrategies = networkStrategies;
             _startMenuNavigation = startMenuNavigation;
             _userContextManager = userContextManager;
@@ -301,7 +301,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     },
                     ct);
 
-                await _botNotifications.NotifyOnOfferSendToBlockchainAsync(client, offer, acceptedBid, ct);
+                await _botNotificationsHelper.NotifyOnOfferSendToBlockchainAsync(client, offer, acceptedBid, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
@@ -404,7 +404,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             var strategy = _networkStrategies.GetStrategy(offer.Network);
 
-            var message = $"Details for offer {offer.Amount.ToHtmlWithTickerUrl(strategy)}\n\n" +
+            var message = $"Details for offer {offer.Amount.ToHtmlUrl(strategy)}\n\n" +
                           $"Description: {offer.Description}\n\n";
 
             var offerBids = await _offerRepository.GetBidsAsync(offerId, ct);
@@ -886,7 +886,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
             else
             {
-                await _botNotifications.NotifyOnBidAccepted(client, chatId, offer, bid, declinedBids, ct);
+                await _botNotificationsHelper.NotifyOnBidAccepted(client, chatId, offer, bid, declinedBids, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
@@ -919,7 +919,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
             else
             {
-                await _botNotifications.NotifyOnBidDeclined(client, chatId, bid, ct);
+                await _botNotificationsHelper.NotifyOnBidDeclined(client, chatId, bid, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);

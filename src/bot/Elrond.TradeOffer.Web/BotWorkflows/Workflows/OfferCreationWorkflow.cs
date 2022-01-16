@@ -359,7 +359,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (temporaryOffer.Description == null)
             {
                 var message = $"You're trying to create an offer for the {elrondUser.Network}.\n" +
-                              $"You chose to offer {temporaryOffer.Amount.ToHtmlWithTickerUrl(networkStrategy)}.\n\n" +
+                              $"You chose to offer {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}.\n\n" +
                               "Please choose a description now, which can help other users to have an idea of what you would like to get out of the trade:";
 
                 await client.SendTextMessageAsync(
@@ -375,7 +375,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var summary = "<b><u>Summary of your offer:</u></b>\n\n" +
                           $"<b>Network:</b> {elrondUser.Network}\n" +
                           $"<b>Address:</b> {elrondUser.ShortedAddress}\n" +
-                          $"<b>Offer:</b> {temporaryOffer.Amount.ToHtmlWithTickerUrl(networkStrategy)}\n" +
+                          $"<b>Offer:</b> {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}\n" +
                           $"<b>Description:</b> {temporaryOffer.Description}\n\n" +
                           "Do you want to place the offer now?";
 

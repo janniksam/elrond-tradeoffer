@@ -11,7 +11,7 @@ public class DbBid : BaseEntity
         long creatorUserId, 
         long creatorChatId,
         BidState state,
-        string tokenTicker, 
+        string tokenId, 
         string tokenName,
         ulong tokenNonce, 
         int tokenPrecision,
@@ -21,7 +21,7 @@ public class DbBid : BaseEntity
         CreatorUserId = creatorUserId;
         CreatorChatId = creatorChatId;
         State = state;
-        TokenTicker = tokenTicker;
+        TokenId = tokenId;
         TokenName = tokenName;
         TokenNonce = tokenNonce;
         TokenPrecision = tokenPrecision;
@@ -36,7 +36,7 @@ public class DbBid : BaseEntity
     
     public BidState State { get; set; }
 
-    public string TokenTicker { get; private set; }
+    public string TokenId { get; private set; }
 
     public string TokenName { get; private set; }
 
