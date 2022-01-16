@@ -5,7 +5,7 @@ using Telegram.Bot;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows;
 
-public interface IBotNotifications
+public interface IBotNotificationsHelper
 {
     Task NotifyOnOfferSendToBlockchainAsync(ITelegramBotClient client, Offer offer, Bid bid, CancellationToken ct);
     Task NotifyOnTradeCompletedAsync(ITelegramBotClient client, Offer offer, Bid bid, CancellationToken ct);

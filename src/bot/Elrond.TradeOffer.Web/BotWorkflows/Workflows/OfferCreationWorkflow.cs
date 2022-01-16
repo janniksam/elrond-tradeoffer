@@ -97,7 +97,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             {
                 await DeleteMessageAsync(client, chatId, previousMessageId, ct);
                 var tokenIdentifier = query.Data[PlaceOfferTokenQueryPrefix.Length..];
-                return await CreateOfferOnTokenIdentifierChosenAsync(client, userId, chatId, tokenIdentifier, ct);
+                return await CreateOfferOnTokenChosenAsync(client, userId, chatId, tokenIdentifier, ct);
             }
 
             if (query.Data == PlaceOfferQuery)
@@ -146,7 +146,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             return await CreateOfferWizard(client, userId, chatId, balances, ct);
         }
 
-        private async Task<WorkflowResult> CreateOfferOnTokenIdentifierChosenAsync(ITelegramBotClient client, long userId, long chatId, string tokenIdentifier, CancellationToken ct)
+        private async Task<WorkflowResult> CreateOfferOnTokenChosenAsync(ITelegramBotClient client, long userId, long chatId, string tokenIdentifier, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
             if (elrondUser.Address == null)
@@ -166,7 +166,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return await CreateOfferWizard(client, userId, chatId, balances, ct);
             }
             
-            _temporaryOfferManager.SetTokenIdentifier(userId, token.Token);
+            _temporaryOfferManager.SetToken(userId, token.Token);
             if (token.Token.IsNft() && token.Amount.Value.IsOne)
             {
                 _temporaryOfferManager.SetTokenAmount(userId, token.Amount);
@@ -312,7 +312,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     buttons.Add(new[]
                     {
                         InlineKeyboardButton.WithCallbackData(
-                            $"{tokenBalance.Token.Identifier} (Available: {tokenBalance.Amount.ToCurrencyString()})",
+                            $"{tokenBalance.Token} (Available: {tokenBalance.Amount.ToCurrencyString()})",
                             $"{PlaceOfferTokenQueryPrefix}{tokenBalance.Token.Identifier}")
                     });
                 }
@@ -343,7 +343,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 }
 
                 var message = $"You're trying to create an offer on the {elrondUser.Network}.\n" +
-                              $"You chose the token {temporaryOffer.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in you wallet).\n\n" +
+                              $"You chose the token {temporaryOffer.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in your wallet).\n\n" +
                               $"How many {temporaryOffer.Token.Identifier} would you like to offer?";
 
                 await client.SendTextMessageAsync(
@@ -359,7 +359,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (temporaryOffer.Description == null)
             {
                 var message = $"You're trying to create an offer for the {elrondUser.Network}.\n" +
-                              $"You chose to offer {temporaryOffer.Amount.ToHtmlWithIdentifierUrl(networkStrategy)}.\n\n" +
+                              $"You chose to offer {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}.\n\n" +
                               "Please choose a description now, which can help other users to have an idea of what you would like to get out of the trade:";
 
                 await client.SendTextMessageAsync(
@@ -375,7 +375,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var summary = "<b><u>Summary of your offer:</u></b>\n\n" +
                           $"<b>Network:</b> {elrondUser.Network}\n" +
                           $"<b>Address:</b> {elrondUser.ShortedAddress}\n" +
-                          $"<b>Offer:</b> {temporaryOffer.Amount.ToHtmlWithIdentifierUrl(networkStrategy)}\n" +
+                          $"<b>Offer:</b> {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}\n" +
                           $"<b>Description:</b> {temporaryOffer.Description}\n\n" +
                           "Do you want to place the offer now?";
 

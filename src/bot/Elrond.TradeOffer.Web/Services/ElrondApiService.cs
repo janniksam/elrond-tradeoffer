@@ -45,7 +45,7 @@ public class ElrondApiService : IElrondApiService
         
         foreach (var token in nftsTokens)
         {
-            tokens.Add(new ElrondToken(Token.Nft(token.name, token.identifier, token.decimals, (ulong)token.nonce), token.balance ?? "1"));
+            tokens.Add(new ElrondToken(Token.Nft(token.name, token.ticker, token.decimals, (ulong)token.nonce), token.balance ?? "1"));
         }
 
         return tokens;

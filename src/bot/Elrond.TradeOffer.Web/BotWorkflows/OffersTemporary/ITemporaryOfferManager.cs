@@ -6,7 +6,7 @@ public interface ITemporaryOfferManager
 {
     TemporaryOffer Get(long userId);
 
-    void SetTokenIdentifier(long userId, Token tokenidentifier);
+    void SetToken(long userId, Token token);
 
     void SetTokenAmount(long userId, TokenAmount tokenAmount);
 

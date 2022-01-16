@@ -21,7 +21,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         private readonly IBotManager _botManager;
         private readonly IUserContextManager _userContextManager;
         private readonly INetworkStrategies _networkStrategies;
-        private readonly IBotNotifications _botNotification;
+        private readonly IBotNotificationsHelper _botNotificationHelper;
         private readonly IFeatureStatesManager _featureStatesManager;
         private readonly Func<IOfferRepository> _offerRepositoryFactory;
         private readonly ILogger<ElrondTradeOfferBotService> _logger;
@@ -36,7 +36,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             IBotManager botManager,
             IUserContextManager userContextManager,
             INetworkStrategies networkStrategies,
-            IBotNotifications botNotification,
+            IBotNotificationsHelper botNotificationHelper,
             IFeatureStatesManager featureStatesManager,
             Func<IUserRepository> userRepositoryFactory,
             Func<IOfferRepository> offerRepositoryFactory,
@@ -49,7 +49,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             _botManager = botManager;
             _userContextManager = userContextManager;
             _networkStrategies = networkStrategies;
-            _botNotification = botNotification;
+            _botNotificationHelper = botNotificationHelper;
             _featureStatesManager = featureStatesManager;
             _userRepositoryFactory = userRepositoryFactory;
             _offerRepositoryFactory = offerRepositoryFactory;
@@ -131,8 +131,9 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                 offerRepository, 
                 _transactionGenerator, 
                 _elrondApiService, 
-                _botNotification, 
+                _botNotificationHelper, 
                 _networkStrategies,
+                _userContextManager,
                 startmenuWorkflow);
 
             var botWorkflows = new IBotProcessor[]
@@ -143,7 +144,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                 offerListWorkflow,
                 new BidCreationWorkflow(
                     userRepository, _userContextManager, offerRepository, _temporaryBidManager, 
-                    _elrondApiService, offerListWorkflow, _botNotification, _networkStrategies,
+                    _elrondApiService, offerListWorkflow, _botNotificationHelper, _networkStrategies,
                     startmenuWorkflow),
                 new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager, _networkStrategies),
             };

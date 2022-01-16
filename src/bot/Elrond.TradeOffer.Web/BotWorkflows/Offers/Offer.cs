@@ -51,7 +51,7 @@ public class Offer
             dbOffer.CreatorUserId,
             dbOffer.CreatorChatId,
             TokenAmount.From(dbOffer.TokenAmount,
-                new Token(dbOffer.TokenName, dbOffer.TokenIdentifier, dbOffer.TokenNonce, dbOffer.TokenPrecision)),
+                new Token(dbOffer.TokenName, dbOffer.TokenId, dbOffer.TokenNonce, dbOffer.TokenPrecision)),
             dbOffer.Description);
     }
 }

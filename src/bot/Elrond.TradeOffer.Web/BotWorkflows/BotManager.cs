@@ -6,14 +6,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows;
 
 public class BotManager : IBotManager
 {
-    public ITelegramBotClient Client { get; private set; }
-
     public BotManager(IConfiguration configuration)
     {
         var token = configuration.GetValue<string>("TelegramBotToken");
         Client = new TelegramBotClient(token);
     }
 
+    public ITelegramBotClient Client { get; }
+    
     public async Task StartAsync(
         Func<ITelegramBotClient, Update, CancellationToken, Task> updateHandler,
         Func<ITelegramBotClient, Exception, CancellationToken, Task> errorHandler,

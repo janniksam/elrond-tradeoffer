@@ -3,6 +3,7 @@ using System;
 using Elrond.TradeOffer.Web.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Elrond.TradeOffer.Web.Migrations
 {
     [DbContext(typeof(ElrondTradeOfferDbContext))]
-    partial class ElrondTradeOfferDbContextModelSnapshot : ModelSnapshot
+    [Migration("20220115140127_Identifier_renamed_to_Ticker")]
+    partial class Identifier_renamed_to_Ticker
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -45,10 +47,6 @@ namespace Elrond.TradeOffer.Web.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<string>("TokenId")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
                     b.Property<string>("TokenName")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -58,6 +56,10 @@ namespace Elrond.TradeOffer.Web.Migrations
 
                     b.Property<int>("TokenPrecision")
                         .HasColumnType("int");
+
+                    b.Property<string>("TokenTicker")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime>("UpdatedOn")
                         .HasColumnType("datetime(6)");
@@ -130,10 +132,6 @@ namespace Elrond.TradeOffer.Web.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<string>("TokenId")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
                     b.Property<string>("TokenName")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -143,6 +141,10 @@ namespace Elrond.TradeOffer.Web.Migrations
 
                     b.Property<int>("TokenPrecision")
                         .HasColumnType("int");
+
+                    b.Property<string>("TokenTicker")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<DateTime>("UpdatedOn")
                         .HasColumnType("datetime(6)");

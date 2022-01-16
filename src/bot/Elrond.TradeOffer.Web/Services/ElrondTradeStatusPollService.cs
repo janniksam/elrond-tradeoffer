@@ -12,7 +12,7 @@ public class ElrondTradeStatusPollService : IHostedService
     private readonly Func<IOfferRepository> _offerManagerFactory;
     private readonly IBotManager _botManager;
     private readonly IElrondApiService _elrondApiService;
-    private readonly IBotNotifications _botNotifications;
+    private readonly IBotNotificationsHelper _botNotificationsHelper;
     private readonly ILogger<ElrondTradeOfferBotService> _log;
     private Timer? _timer;
 
@@ -21,14 +21,14 @@ public class ElrondTradeStatusPollService : IHostedService
         Func<IOfferRepository> offerManagerFactory,
         IBotManager botManager,
         IElrondApiService elrondApiService,
-        IBotNotifications botNotifications,
+        IBotNotificationsHelper botNotificationsHelper,
         ILogger<ElrondTradeOfferBotService> log)
     {
         _pollInterval = configuration.GetValue<int>("StatusPollInterval");
         _offerManagerFactory = offerManagerFactory;
         _botManager = botManager;
         _elrondApiService = elrondApiService;
-        _botNotifications = botNotifications;
+        _botNotificationsHelper = botNotificationsHelper;
         _log = log;
     }
 
@@ -73,7 +73,7 @@ public class ElrondTradeStatusPollService : IHostedService
             }
 
             await offerManager.CompleteOfferAsync(offer.Id, ct);
-            await _botNotifications.NotifyOnOfferCancelledAsync(_botManager.Client, offer, ct);
+            await _botNotificationsHelper.NotifyOnOfferCancelledAsync(_botManager.Client, offer, ct);
         }
     }
 
@@ -103,7 +103,7 @@ public class ElrondTradeStatusPollService : IHostedService
                 },
                 ct);
 
-            await _botNotifications.NotifyOnOfferSendToBlockchainAsync(_botManager.Client, offer, bid, ct);
+            await _botNotificationsHelper.NotifyOnOfferSendToBlockchainAsync(_botManager.Client, offer, bid, ct);
         }
     }
 
@@ -125,7 +125,7 @@ public class ElrondTradeStatusPollService : IHostedService
 
             await offerRepository.CompleteOfferAsync(offer.Id, ct);
 
-            await _botNotifications.NotifyOnTradeCompletedAsync(_botManager.Client, offer, bid, ct);
+            await _botNotificationsHelper.NotifyOnTradeCompletedAsync(_botManager.Client, offer, bid, ct);
         }
     }
 

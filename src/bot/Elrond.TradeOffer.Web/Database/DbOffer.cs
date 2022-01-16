@@ -11,7 +11,7 @@ public class DbOffer : BaseEntity
         long creatorUserId,
         long creatorChatId, 
         string description,
-        string tokenIdentifier, 
+        string tokenId, 
         string tokenName, 
         ulong tokenNonce,
         int tokenPrecision, 
@@ -22,7 +22,7 @@ public class DbOffer : BaseEntity
         CreatorUserId = creatorUserId;
         CreatorChatId = creatorChatId;
         Description = description;
-        TokenIdentifier = tokenIdentifier;
+        TokenId = tokenId;
         TokenName = tokenName;
         TokenNonce = tokenNonce;
         TokenPrecision = tokenPrecision;
@@ -39,7 +39,7 @@ public class DbOffer : BaseEntity
     
     public string Description { get; private set; }
 
-    public string TokenIdentifier { get; private set; }
+    public string TokenId { get; private set; }
 
     public string TokenName { get; private set; }
 

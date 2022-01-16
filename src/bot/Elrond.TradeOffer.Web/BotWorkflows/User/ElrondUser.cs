@@ -24,7 +24,7 @@ public record ElrondUser
 
     public ElrondNetwork Network { get; set; }
 
-    public bool IsAdmin { get; }
+    public bool IsAdmin { get; set; }
 
     public static ElrondUser From(DbUser user) => new(user.Id, user.Address, user.Network, user.IsAdmin);
  

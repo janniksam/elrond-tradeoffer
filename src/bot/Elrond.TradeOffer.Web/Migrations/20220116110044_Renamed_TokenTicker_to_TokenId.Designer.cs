@@ -3,6 +3,7 @@ using System;
 using Elrond.TradeOffer.Web.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Elrond.TradeOffer.Web.Migrations
 {
     [DbContext(typeof(ElrondTradeOfferDbContext))]
-    partial class ElrondTradeOfferDbContextModelSnapshot : ModelSnapshot
+    [Migration("20220116110044_Renamed_TokenTicker_to_TokenId")]
+    partial class Renamed_TokenTicker_to_TokenId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

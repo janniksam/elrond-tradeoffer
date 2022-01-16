@@ -26,6 +26,11 @@ public class MainnetNetworkStrategy : NetworkStrategy
         return "https://explorer.elrond.com/tokens/{0}";
     }
 
+    public override string GetNftUrlFormat()
+    {
+        return "https://explorer.elrond.com/nfts/{0}";
+    }
+
     public override string GetApiGateway()
     {
         return "https://api.elrond.com";

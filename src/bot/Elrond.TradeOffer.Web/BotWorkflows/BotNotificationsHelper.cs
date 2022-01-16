@@ -9,11 +9,11 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows
 {
-    public class BotNotifications : IBotNotifications
+    public class BotNotificationsHelper : IBotNotificationsHelper
     {
         private readonly INetworkStrategies _networkStrategies;
 
-        public BotNotifications(INetworkStrategies networkStrategies)
+        public BotNotificationsHelper(INetworkStrategies networkStrategies)
         {
             _networkStrategies = networkStrategies;
         }
@@ -21,8 +21,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         public async Task NotifyOnOfferSendToBlockchainAsync(ITelegramBotClient client, Offer offer, Bid bid, CancellationToken ct)
         {
             var networkStrategy = _networkStrategies.GetStrategy(offer.Network);
-            var offeredAmount = offer.Amount.ToHtmlWithIdentifierUrl(networkStrategy);
-            var bidAmount = bid.Amount.ToHtmlWithIdentifierUrl(networkStrategy);
+            var offeredAmount = offer.Amount.ToHtmlUrl(networkStrategy);
+            var bidAmount = bid.Amount.ToHtmlUrl(networkStrategy);
             await ApiExceptionHelper.RunAndSupressAsync(() =>
             {
                 return client.SendTextMessageAsync(
@@ -80,7 +80,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             await ApiExceptionHelper.RunAndSupressAsync(() =>
                 client.SendTextMessageAsync(
                     offer.CreatorChatId,
-                    $"You trade offer has been cancelled. You claimed back you {offer.Amount.ToHtmlWithIdentifierUrl(strategy)}.",
+                    $"You trade offer has been cancelled. You claimed back you {offer.Amount.ToHtmlUrl(strategy)}.",
                     ParseMode.Html,
                     disableWebPagePreview: true,
                     cancellationToken: ct));
@@ -95,8 +95,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             CancellationToken ct)
         {
             var strategy = _networkStrategies.GetStrategy(offer.Network);
-            var offeredTokens = offer.Amount.ToHtmlWithIdentifierUrl(strategy);
-            var acceptedTokens = acceptedBid.Amount.ToHtmlWithIdentifierUrl(strategy);
+            var offeredTokens = offer.Amount.ToHtmlUrl(strategy);
+            var acceptedTokens = acceptedBid.Amount.ToHtmlUrl(strategy);
             await client.SendTextMessageAsync(
                 chatId, $"You accepted the bid of {acceptedTokens} for the offer of {offeredTokens} was accepted.",
                 ParseMode.Html,
@@ -152,8 +152,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         public async Task NotifyOnBidPlacedAsync(ITelegramBotClient client, Offer offer, long bidChatId, TokenAmount bidAmount, CancellationToken ct)
         {
             var strategy = _networkStrategies.GetStrategy(offer.Network);
-            var bidTokens = bidAmount.ToHtmlWithIdentifierUrl(strategy);
-            var offeredTokens = offer.Amount.ToHtmlWithIdentifierUrl(strategy);
+            var bidTokens = bidAmount.ToHtmlUrl(strategy);
+            var offeredTokens = offer.Amount.ToHtmlUrl(strategy);
 
             await client.SendTextMessageAsync(
                 bidChatId,

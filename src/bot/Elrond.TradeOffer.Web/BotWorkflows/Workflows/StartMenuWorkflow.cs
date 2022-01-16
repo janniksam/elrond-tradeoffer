@@ -188,7 +188,7 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
         {
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("Place an offer", CommonQueries.CreateAnOfferQuery),
+                InlineKeyboardButton.WithCallbackData("➕ Place an offer", CommonQueries.CreateAnOfferQuery),
                 InlineKeyboardButton.WithCallbackData("🔎 View offers", CommonQueries.ViewOffersQuery)
             },
             new[]

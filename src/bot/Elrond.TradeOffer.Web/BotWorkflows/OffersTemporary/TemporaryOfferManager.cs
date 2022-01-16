@@ -19,14 +19,14 @@ public class TemporaryOfferManager : ITemporaryOfferManager
             _ => new TemporaryOffer());
     }
 
-    public void SetTokenIdentifier(long userId, Token tokenidentifier)
+    public void SetToken(long userId, Token token)
     {
         _temporaryOffer.AddOrUpdate(
             userId,
-            _ => new TemporaryOffer { Token = tokenidentifier },
+            _ => new TemporaryOffer { Token = token },
             (_, user) =>
             {
-                user.Token = tokenidentifier;
+                user.Token = token;
                 return user;
             });
     }

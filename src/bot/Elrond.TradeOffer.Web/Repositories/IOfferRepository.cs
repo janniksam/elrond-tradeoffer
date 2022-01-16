@@ -14,7 +14,7 @@ public interface IOfferRepository
 
     Task<Offer?> GetAsync(Guid offerId, CancellationToken ct);
 
-    Task<IReadOnlyCollection<Offer>> GetAllOffersAsync(ElrondNetwork network, CancellationToken ct);
+    Task<IReadOnlyCollection<Offer>> GetOffersAsync(ElrondNetwork network, OfferFilter filter, int maxAmount, CancellationToken ct);
         
     Task<CancelOfferResult> CancelAsync(Guid orderId, long userId, CancellationToken ct);
     
