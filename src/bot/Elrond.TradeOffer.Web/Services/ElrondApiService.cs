@@ -40,7 +40,7 @@ public class ElrondApiService : IElrondApiService
 
         foreach (var token in esdtTokens)
         {
-            tokens.Add(new ElrondToken(Token.Esdt(token.name, token.ticker, token.decimals), token.balance));
+            tokens.Add(new ElrondToken(Token.Esdt(token.name, token.identifier, token.decimals), token.balance));
         }
         
         foreach (var token in nftsTokens)
