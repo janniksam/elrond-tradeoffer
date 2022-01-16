@@ -1,0 +1,96 @@
+{
+    "name": "accept_offer_bidder_expects_a_different_amount",
+    "comment": "trying to accept an offer, but bidder expects a different amount",
+    "gasSchedule": "v3",
+    "steps": [
+        {
+            "step": "setState",
+            "accounts": {
+                "address:owner": {
+                    "nonce": "1",
+                    "balance": "200"
+                },
+                "address:bidder": {
+                    "nonce": "2",
+                    "balance": "500"
+                }
+            },
+            "newAddresses": [
+                {
+                    "creatorAddress": "address:owner",
+                    "creatorNonce": "1",
+                    "newAddress": "sc:sctrader"
+                }
+            ]
+        },
+        {
+            "step": "scDeploy",
+            "txId": "1",
+            "tx": {
+                "from": "address:owner",
+                "contractCode": "file:../output/elrond_trade_offer.wasm",
+                "arguments": [],
+                "gasLimit": "5,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "scCall",
+            "txId": "2",
+            "tx": {
+                "from": "address:owner",
+                "to": "sc:sctrader",
+                "function": "offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000", 
+                    "",
+                    "500",
+                    ""
+                ],
+                "value": "200",
+                "gasLimit": "9,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "scCall",
+            "txId": "3",
+            "tx": {
+                "from": "address:bidder",
+                "to": "sc:sctrader",
+                "function": "accept_offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000",
+                    "",
+                    "250",
+                    ""
+                ],
+                "value": "500",
+                "gasLimit": "8,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "4",
+                "message": "str:Tokens you would get differ from the tokens you want",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        }
+    ]
+}
