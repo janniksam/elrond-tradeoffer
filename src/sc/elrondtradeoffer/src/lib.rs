@@ -38,6 +38,11 @@ pub trait Trader {
         wanna_have_nonce: u64
     ) -> SCResult<()> {
         require!(
+            offer_amount > 0,
+            "offer_amount needs to be greater than 0"
+        );
+
+        require!(
             wanna_have_amount > 0,
             "wanna_have_amount needs to be greater than 0"
         );
@@ -81,14 +86,14 @@ pub trait Trader {
     ) -> SCResult<()> {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
-            "An offer with this id does not exist."
+            "An offer with this id does not exist"
         );
 
         let caller = self.blockchain().get_caller();
         let info = self.trade_offer(&trade_offer_id).get();  
         require!(
             info.offer_creator == caller,
-            "Only the creator of the offer can cancel the offer."
+            "You are not the creator"
         );
         
         self.trade_offer(&trade_offer_id).clear();

@@ -1,6 +1,6 @@
 {
-    "name": "offer_offer_id_needs_to_be_exactly_16_bytes",
-    "comment": "an offer id has to be exactly 16 bytes in length",
+    "name": "offer_wanna_have_amount_needs_to_be_bigger_than_0 ",
+    "comment": "offer with same id was already finished",
     "gasSchedule": "v3",
     "steps": [
         {
@@ -15,7 +15,7 @@
                 {
                     "creatorAddress": "address:owner",
                     "creatorNonce": "1",
-                    "newAddress": "sc:trader"
+                    "newAddress": "sc:sctrader"
                 }
             ]
         },
@@ -42,22 +42,22 @@
             "txId": "2",
             "tx": {
                 "from": "address:owner",
-                "to": "sc:trader",
+                "to": "sc:sctrader",
                 "function": "offer",
                 "arguments": [
-                    "0x000000000000000000000000000000", 
+                    "0x00000000000000000000000000000000", 
                     "",
-                    "10",
+                    "0",
                     ""
                 ],
-                "value": "10",
+                "value": "0",
                 "gasLimit": "9,000,000",
                 "gasPrice": "0"
             },
             "expect": {
                 "out": [],
                 "status": "4",
-                "message": "str:trade_offer_id needs to be 16 bytes in length",
+                "message": "str:offer_amount needs to be greater than 0",
                 "logs": [],
                 "gas": "*",
                 "refund": "*"

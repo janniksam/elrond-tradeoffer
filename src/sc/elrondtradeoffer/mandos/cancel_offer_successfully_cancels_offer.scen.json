@@ -1,6 +1,6 @@
 {
-    "name": "offer_doesnt_allow_same_id_twice",
-    "comment": "an offer with same id is currently active",
+    "name": "cancel_offer_you_are_not_the_creator.scen ",
+    "comment": "trying to cancel an offer, but you are not the creator",
     "gasSchedule": "v3",
     "steps": [
         {
@@ -15,7 +15,7 @@
                 {
                     "creatorAddress": "address:owner",
                     "creatorNonce": "1",
-                    "newAddress": "sc:trader"
+                    "newAddress": "sc:sctrader"
                 }
             ]
         },
@@ -42,7 +42,7 @@
             "txId": "2",
             "tx": {
                 "from": "address:owner",
-                "to": "sc:trader",
+                "to": "sc:sctrader",
                 "function": "offer",
                 "arguments": [
                     "0x00000000000000000000000000000000", 
@@ -63,29 +63,49 @@
             }
         },
         {
+            "step": "checkState",
+            "comment": "check that offer was placed",
+            "accounts": {
+                "sc:sctrader": {
+                    "balance": "10",
+                    "code": "file:../output/elrond_trade_offer.wasm"
+                },
+                "+": ""
+            }
+        },
+        {
             "step": "scCall",
             "txId": "3",
             "tx": {
                 "from": "address:owner",
-                "to": "sc:trader",
-                "function": "offer",
+                "to": "sc:sctrader",
+                "function": "cancel_offer",
                 "arguments": [
-                    "0x00000000000000000000000000000000", 
-                    "",
-                    "10",
-                    ""
+                    "0x00000000000000000000000000000000"
                 ],
-                "value": "10",
-                "gasLimit": "9,000,000",
+                "gasLimit": "8,000,000",
                 "gasPrice": "0"
             },
             "expect": {
                 "out": [],
-                "status": "4",
-                "message": "str:An offer with this Id is already existing",
+                "status": "",
                 "logs": [],
                 "gas": "*",
                 "refund": "*"
+            }
+        },
+        {
+            "step": "checkState",
+            "comment": "check that offer is was cancelled",
+            "accounts": {
+                "sc:sctrader": {
+                    "balance": "0",
+                    "storage": {
+                        "str:finished_offer|nested:0x00000000000000000000000000000000": "u8:2"
+                    },
+                    "code": "file:../output/elrond_trade_offer.wasm"
+                },
+                "+": ""
             }
         }
     ]

@@ -1,6 +1,6 @@
 {
-    "name": "offer_offer_id_needs_to_be_exactly_16_bytes",
-    "comment": "an offer id has to be exactly 16 bytes in length",
+    "name": "cancel_offer_you_are_not_the_creator.scen ",
+    "comment": "trying to cancel an offer, but you are not the creator",
     "gasSchedule": "v3",
     "steps": [
         {
@@ -9,13 +9,17 @@
                 "address:owner": {
                     "nonce": "1",
                     "balance": "100"
+                },
+                "address:anotherPerson": {
+                    "nonce": "1",
+                    "balance": "100"
                 }
             },
             "newAddresses": [
                 {
                     "creatorAddress": "address:owner",
                     "creatorNonce": "1",
-                    "newAddress": "sc:trader"
+                    "newAddress": "sc:sctrader"
                 }
             ]
         },
@@ -42,10 +46,10 @@
             "txId": "2",
             "tx": {
                 "from": "address:owner",
-                "to": "sc:trader",
+                "to": "sc:sctrader",
                 "function": "offer",
                 "arguments": [
-                    "0x000000000000000000000000000000", 
+                    "0x00000000000000000000000000000000", 
                     "",
                     "10",
                     ""
@@ -56,8 +60,29 @@
             },
             "expect": {
                 "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "scCall",
+            "txId": "3",
+            "tx": {
+                "from": "address:anotherPerson",
+                "to": "sc:sctrader",
+                "function": "cancel_offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000"
+                ],
+                "gasLimit": "8,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
                 "status": "4",
-                "message": "str:trade_offer_id needs to be 16 bytes in length",
+                "message": "str:You are not the creator",
                 "logs": [],
                 "gas": "*",
                 "refund": "*"

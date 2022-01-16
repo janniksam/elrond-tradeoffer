@@ -62,7 +62,8 @@
                     "10",
                     ""
                 ],
-                "gasLimit": "8,000,000",
+                "value": "10",
+                "gasLimit": "9,000,000",
                 "gasPrice": "0"
             },
             "expect": {
