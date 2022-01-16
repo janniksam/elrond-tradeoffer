@@ -1,6 +1,6 @@
 {
-    "name": "elrond_trade_offer",
-    "comment": "add then check",
+    "name": "offer_doesnt_allow_same_id_twice",
+    "comment": "an offer with same id is currently active",
     "gasSchedule": "v3",
     "steps": [
         {
@@ -8,7 +8,7 @@
             "accounts": {
                 "address:owner": {
                     "nonce": "1",
-                    "balance": "0"
+                    "balance": "100"
                 }
             },
             "newAddresses": [
@@ -25,9 +25,7 @@
             "tx": {
                 "from": "address:owner",
                 "contractCode": "file:../output/elrond_trade_offer.wasm",
-                "arguments": [
-                    "5"
-                ],
+                "arguments": [],
                 "gasLimit": "5,000,000",
                 "gasPrice": "0"
             },
@@ -40,19 +38,27 @@
             }
         },
         {
-            "step": "scQuery",
+            "step": "scCall",
             "txId": "2",
             "tx": {
+                "from": "address:owner",
                 "to": "sc:trader",
-                "function": "getSum",
-                "arguments": []
+                "function": "offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000", 
+                    "",
+                    "10",
+                    ""
+                ],
+                "gasLimit": "8,000,000",
+                "gasPrice": "0"
             },
             "expect": {
-                "out": [
-                    "5"
-                ],
+                "out": [],
                 "status": "",
-                "logs": []
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
             }
         },
         {
@@ -61,38 +67,23 @@
             "tx": {
                 "from": "address:owner",
                 "to": "sc:trader",
-                "function": "add",
+                "function": "offer",
                 "arguments": [
-                    "3"
+                    "0x00000000000000000000000000000000", 
+                    "",
+                    "10",
+                    ""
                 ],
-                "gasLimit": "5,000,000",
+                "gasLimit": "8,000,000",
                 "gasPrice": "0"
             },
             "expect": {
                 "out": [],
-                "status": "",
+                "status": "4",
+                "message": "str:An offer with this Id is already existing",
                 "logs": [],
                 "gas": "*",
                 "refund": "*"
-            }
-        },
-        {
-            "step": "checkState",
-            "accounts": {
-                "address:owner": {
-                    "nonce": "*",
-                    "balance": "0",
-                    "storage": {},
-                    "code": ""
-                },
-                "sc:trader": {
-                    "nonce": "0",
-                    "balance": "0",
-                    "storage": {
-                        "str:sum": "8"
-                    },
-                    "code": "file:../output/elrond_trade_offer.wasm"
-                }
             }
         }
     ]
