@@ -38,6 +38,11 @@ pub trait Trader {
         wanna_have_nonce: u64
     ) -> SCResult<()> {
         require!(
+            offer_amount > 0,
+            "offer_amount needs to be greater than 0"
+        );
+
+        require!(
             wanna_have_amount > 0,
             "wanna_have_amount needs to be greater than 0"
         );
@@ -81,14 +86,14 @@ pub trait Trader {
     ) -> SCResult<()> {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
-            "An offer with this id does not exist."
+            "An offer with this id does not exist"
         );
 
         let caller = self.blockchain().get_caller();
         let info = self.trade_offer(&trade_offer_id).get();  
         require!(
             info.offer_creator == caller,
-            "Only the creator of the offer can cancel the offer."
+            "You are not the creator"
         );
         
         self.trade_offer(&trade_offer_id).clear();
@@ -116,7 +121,7 @@ pub trait Trader {
     ) -> SCResult<()> {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
-            "An offer with this id does not exist."
+            "An offer with this id does not exist"
         );
 
         let offer_info = self.trade_offer(&trade_offer_id).get();  
@@ -124,13 +129,13 @@ pub trait Trader {
             offer_info.token_identifier_offered == wanna_have_token && 
             offer_info.token_amount_offered == wanna_have_amount &&
             offer_info.token_nonce_offered == wanna_have_nonce,
-            "Possible scam detected. The tokens you would get differ from the tokens you want"
+            "Tokens you would get differ from the tokens you want"
         );
         require!(
             offer_info.token_identifier_wanted == sent_token && 
             offer_info.token_amount_wanted == sent_amount &&
             offer_info.token_nonce_wanted == sent_nonce,
-            "Wrong token or not the correct number of tokens.."
+            "Wrong token or not the correct number of tokens"
         );
 
         self.trade_offer(&trade_offer_id).clear();
