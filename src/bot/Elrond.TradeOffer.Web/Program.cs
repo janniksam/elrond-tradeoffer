@@ -7,9 +7,11 @@ using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Elrond.TradeOffer.Web.TestData;
+using Elrond.TradeOffer.Web.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using MySqlConnector;
+
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
@@ -76,6 +78,7 @@ builder.Services.AddHostedService<ElrondTradeOfferBotService>();
 builder.Services.AddHostedService<ElrondTradeStatusPollService>();
 
 var app = builder.Build();
+LoggingFactory.LogFactory = app.Services.GetService<ILoggerFactory>();
 
 if (dataProvider == "memory")
 {

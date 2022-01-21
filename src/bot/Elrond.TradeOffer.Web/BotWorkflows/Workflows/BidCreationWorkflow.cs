@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Elrond.TradeOffer.Web.BotWorkflows.BidsTemporary;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
+using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Models;
 using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
@@ -251,14 +252,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     $"You chose the token {temporaryBid.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()}).\n\n" +
                     "Please choose a token amount for your bid:";
 
-                await client.SendTextMessageAsync(
+                var sentMessage = await client.SendTextMessageAsync(
                     chatId,
                     message,
                     ParseMode.Html,
                     disableWebPagePreview: true,
                     cancellationToken: ct);
 
-                return WorkflowResult.Handled(UserContext.EnterBidAmount);
+                return WorkflowResult.Handled(UserContext.EnterBidAmount, sentMessage.MessageId);
             }
             else
             {
@@ -299,9 +300,10 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             var messageText = message.Text;
             var chatId = message.Chat.Id;
-            var context = _userContextManager.Get(message.From.Id);
+            var (context, oldMessageId) = _userContextManager.Get(message.From.Id);
             if (context == UserContext.EnterBidAmount)
             {
+                await client.TryDeleteMessageAsync(chatId, oldMessageId, ct);
                 return await CreateBidOnTokenAmountChosenAsync(client, message.From.Id, chatId, messageText, ct);
             }
 

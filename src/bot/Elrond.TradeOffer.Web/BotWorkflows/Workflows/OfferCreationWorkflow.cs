@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Elrond.TradeOffer.Web.BotWorkflows.OffersTemporary;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
+using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Models;
 using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
@@ -62,13 +63,15 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var messageText = message.Text;
             var chatId = message.Chat.Id;
             var context = _userContextManager.Get(message.From.Id);
-            if (context == UserContext.EnterOfferAmount)
+            if (context.Context == UserContext.EnterOfferAmount)
             {
+                await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
                 return await CreateOfferOnTokenAmountChosenAsync(client, message.From.Id, chatId, messageText, ct);
             }
             
-            if (context == UserContext.EnterOfferDescription)
+            if (context.Context == UserContext.EnterOfferDescription)
             {
+                await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
                 return await CreateOfferOnDescriptionChosenAsync(client, message.From.Id, chatId, messageText, ct);
             }
 
@@ -89,30 +92,25 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             if (query.Data == CommonQueries.CreateAnOfferQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 return await CreateANewOfferAsync(client, userId, chatId, ct);
             }
 
             if (query.Data.StartsWith(PlaceOfferTokenQueryPrefix))
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 var tokenIdentifier = query.Data[PlaceOfferTokenQueryPrefix.Length..];
                 return await CreateOfferOnTokenChosenAsync(client, userId, chatId, tokenIdentifier, ct);
             }
 
             if (query.Data == PlaceOfferQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await PlaceOfferAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
             return WorkflowResult.Unhandled();
-        }
-
-        private static async Task DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
-        {
-            await client.DeleteMessageAsync(chatId, previousMessageId, ct);
         }
 
         private async Task<WorkflowResult> CreateANewOfferAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
@@ -346,14 +344,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                               $"You chose the token {temporaryOffer.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in your wallet).\n\n" +
                               $"How many {temporaryOffer.Token.Identifier} would you like to offer?";
 
-                await client.SendTextMessageAsync(
+                var sentMessage = await client.SendTextMessageAsync(
                     chatId,
                     message,
                     ParseMode.Html,
                     disableWebPagePreview: true,
                     cancellationToken: ct);
 
-                return WorkflowResult.Handled(UserContext.EnterOfferAmount);
+                return WorkflowResult.Handled(UserContext.EnterOfferAmount, sentMessage.MessageId);
             }
 
             if (temporaryOffer.Description == null)
@@ -362,14 +360,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                               $"You chose to offer {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}.\n\n" +
                               "Please choose a description now, which can help other users to have an idea of what you would like to get out of the trade:";
 
-                await client.SendTextMessageAsync(
+                var sentMessage = await client.SendTextMessageAsync(
                     chatId,
                     message,
                     ParseMode.Html,
                     disableWebPagePreview: true,
                     cancellationToken: ct);
 
-                return WorkflowResult.Handled(UserContext.EnterOfferDescription);
+                return WorkflowResult.Handled(UserContext.EnterOfferDescription, sentMessage.MessageId);
             }
 
             var summary = "<b><u>Summary of your offer:</u></b>\n\n" +

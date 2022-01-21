@@ -1,4 +1,5 @@
-﻿using Elrond.TradeOffer.Web.Repositories;
+﻿using Elrond.TradeOffer.Web.Extensions;
+using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -43,42 +44,42 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
 
         if (query.Data == AboutQuery)
         {
-            await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
             await ShowAboutAsync(client, chatId, ct);
             return WorkflowResult.Handled();
         }
 
         if (query.Data == CommonQueries.BackToHomeQuery)
         {
-            await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
             await ShowStartMenuAsync(client, userId, chatId, ct);
             return WorkflowResult.Handled();
         }
 
         if (query.Data == AdministrationQuery)
         {
-            await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
             await ShowAdministrationAsync(client, userId, chatId, ct);
             return WorkflowResult.Handled();
         }
 
         if (query.Data == ToggleDevNetQuery)
         {
-            await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
             await ToggleDevNetAsync(client, userId, chatId, ct);
             return WorkflowResult.Handled();
         }
 
         if (query.Data == ToggleTestNetQuery)
         {
-            await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
             await ToggleTestNetAsync(client, userId, chatId, ct);
             return WorkflowResult.Handled();
         }
 
         if (query.Data == ToggleMainNetQuery)
         {
-            await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
             await ToggleMainNetAsync(client, userId, chatId, ct);
             return WorkflowResult.Handled();
         }
@@ -230,10 +231,5 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
             replyMarkup: new InlineKeyboardMarkup(
                 InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery)),
             cancellationToken: ct);
-    }
-
-    private static async Task DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
-    {
-        await client.DeleteMessageAsync(chatId, previousMessageId, ct);
     }
 }

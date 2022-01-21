@@ -3,6 +3,7 @@ using Elrond.TradeOffer.Web.BotWorkflows.Bids;
 using Elrond.TradeOffer.Web.BotWorkflows.Offers;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.Database;
+using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
@@ -69,21 +70,21 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
            
             if (query.Data == CommonQueries.ViewOffersQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return WorkflowResult.Handled();
             }
 
             if (query.Data == ShowMyOfferQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await ShowOffersAsync(client, userId, chatId, OfferFilter.OwnOffers(userId), ct);
                 return WorkflowResult.Handled();
             }
 
             if (query.Data == SearchOfferQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 return await EnterSearchTermAsync(client, chatId, ct);
             }
             
@@ -95,7 +96,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return await InvalidOfferIdAsync(client, chatId, ct);
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await ShowOfferAsync(client, userId, chatId, offerId, ct);
                 return WorkflowResult.Handled();
             }
@@ -108,7 +109,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return await InvalidOfferIdAsync(client, chatId, ct);
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await CancelOfferAsync(client, userId, chatId, offerId, ct);
                 return WorkflowResult.Handled();
             }
@@ -121,7 +122,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return await InvalidOfferIdAsync(client, chatId, ct);
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await RemoveBidAsync(client, userId, chatId, offerId, ct);
                 return WorkflowResult.Handled();
             }
@@ -146,7 +147,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return WorkflowResult.Handled();
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await AcceptBidAsync(client, userId, chatId, offerId, bidUserId, ct);
                 return WorkflowResult.Handled();
             }
@@ -171,7 +172,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return WorkflowResult.Handled();
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await DeclineBidAsync(client, userId, chatId, offerId, bidUserId, ct);
                 return WorkflowResult.Handled();
             }
@@ -184,7 +185,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return await InvalidOfferIdAsync(client, chatId, ct);
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await InitiateTradeAsync(client, userId, chatId, offerId, ct);
                 return WorkflowResult.Handled();
             }
@@ -197,7 +198,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return await InvalidOfferIdAsync(client, chatId, ct);
                 }
 
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await RefreshInitiateStatusAsync(client, userId, chatId, offerId, ct);
                 return WorkflowResult.Handled();
             }
@@ -207,12 +208,12 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
         private async Task<WorkflowResult> EnterSearchTermAsync(ITelegramBotClient client, long chatId, CancellationToken ct)
         {
-            await client.SendTextMessageAsync(
+            var sentMessage = await client.SendTextMessageAsync(
                 chatId,
                 "Please enter a search term: (e.g. \"mex\" or \"ride-7d18e9\")",
                 cancellationToken: ct);
 
-            return WorkflowResult.Handled(UserContext.EnterOfferSearchTerm);
+            return WorkflowResult.Handled(UserContext.EnterOfferSearchTerm, sentMessage.MessageId);
         }
 
         public async Task<WorkflowResult> ProcessMessageAsync(ITelegramBotClient client, Message message, CancellationToken ct)
@@ -231,8 +232,9 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var userId = message.From.Id;
             var chatId = message.Chat.Id;
             var context = _userContextManager.Get(message.From.Id);
-            if (context == UserContext.EnterOfferSearchTerm)
+            if (context.Context == UserContext.EnterOfferSearchTerm)
             {
+                await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
                 return await SearchOffersAsync(client, userId, chatId, messageText, ct);
             }
 
@@ -259,11 +261,6 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             await ShowOffersAsync(client, userId, chatId, OfferFilter.WithSearchTerm(messageText), ct);
             return WorkflowResult.Handled();
-        }
-
-        private static async Task  DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
-        {
-            await client.DeleteMessageAsync(chatId, previousMessageId, ct);
         }
 
         private async Task RefreshInitiateStatusAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
