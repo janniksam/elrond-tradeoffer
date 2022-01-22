@@ -5,19 +5,25 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Bids;
 
 public class Bid
 {
-    private Bid(Guid offerId, long creatorUserId, long creatorChatId, BidState bidState, DateTime createdAt, TokenAmount amount)
+    private Bid(
+        Guid offerId, 
+        long creatorUserId, 
+        long creatorChatId,
+        BidState bidState, 
+        DateTime createdOn,
+        DateTime updatedOn,
+        TokenAmount amount)
     {
         OfferId = offerId;
         CreatorUserId = creatorUserId;
         CreatorChatId = creatorChatId;
         Amount = amount;
-        CreatedAt = createdAt;
         State = bidState;
+        CreatedOn = createdOn;
+        UpdatedOn = updatedOn;
     }
 
     public Guid OfferId { get; }
-
-    public DateTime CreatedAt { get; }
 
     public long CreatorUserId { get; }
 
@@ -25,7 +31,11 @@ public class Bid
 
     public TokenAmount Amount { get; }
 
-    public BidState State { get; set; }
+    public BidState State { get; }
+
+    public DateTime CreatedOn { get; }
+
+    public DateTime UpdatedOn { get; }
 
     public static Bid From(DbBid dbBid)
     {
@@ -34,8 +44,9 @@ public class Bid
             dbBid.CreatorUserId,
             dbBid.CreatorChatId,
             dbBid.State,
-            dbBid.CreatedAt,
+            dbBid.CreatedOn,
+            dbBid.UpdatedOn,
             TokenAmount.From(dbBid.TokenAmount,
-                new Token(dbBid.TokenName, dbBid.TokenIdentifier, dbBid.TokenNonce, dbBid.TokenPrecision)));
+                new Token(dbBid.TokenName, dbBid.TokenId, dbBid.TokenNonce, dbBid.TokenPrecision)));
     }
 }

@@ -4,6 +4,7 @@ using Elrond.TradeOffer.Web.BotWorkflows.User;
 using Elrond.TradeOffer.Web.Database;
 using Elrond.TradeOffer.Web.Models;
 using Elrond.TradeOffer.Web.Repositories;
+using Elrond.TradeOffer.Web.Services;
 
 namespace Elrond.TradeOffer.Web.TestData
 {
@@ -12,6 +13,7 @@ namespace Elrond.TradeOffer.Web.TestData
         private const long MyUserId = 1692646156;
         private const long MyChatId = 1692646156;
         private const long OtherUser1Id = 1;
+        private const long OtherUser2Id = 2;
         private const long OtherUser1ChatId = 1;
 
         private static readonly Token LkmexToken = Token.Esdt("LKMEX", "LKMEX", 18);
@@ -21,20 +23,26 @@ namespace Elrond.TradeOffer.Web.TestData
 
         private readonly IOfferRepository _offerRepository;
         private readonly IUserRepository _userManager;
+        private readonly IFeatureStatesManager _statesManager;
 
         public TestDataProvider(
             Func<IOfferRepository> offerManager,
-            IUserRepository userManager)
+            IUserRepository userManager,
+            IFeatureStatesManager statesManager)
         {
             _offerRepository = offerManager();
             _userManager = userManager;
+            _statesManager = statesManager;
         }
 
         public async Task ApplyAsync()
-        { 
+        {
             var myUser = await ApplyUserAsync(MyUserId, "erd1npvd6gwtyvem63vngmjvruk7frlld20fmzkzy0a4f80t3cye75pqw5fwsp");
             var anotherUser = await ApplyUserAsync(OtherUser1Id, "anotherErd");
-            
+
+            await _statesManager.SetDevNetStateAsync(true, MyUserId, CancellationToken.None);
+            await _statesManager.SetTestNetStateAsync(true, MyUserId, CancellationToken.None);
+
             await ApplyOffer(
                 myUser, 
                 TokenAmount.From(1000000m, LkmexToken), 
@@ -44,12 +52,18 @@ namespace Elrond.TradeOffer.Web.TestData
             await ApplyOffer(
                 myUser,
                 TokenAmount.From(Million(2), LkmexToken), 
-                "My offer, 1 bid",
+                "My offer, 2 bids",
                 MyChatId,
-                (OtherUser1ChatId, new TemporaryBid(OtherUser1Id)
+                (MyChatId, new TemporaryBid(OtherUser1Id)
                 {
                     Token = Token.Egld(),
                     Amount = TokenAmount.From(0.3m, Token.Egld()),
+                    BidState = BidState.Created
+                }),
+                (MyChatId, new TemporaryBid(OtherUser2Id)
+                {
+                    Token = Token.Egld(),
+                    Amount = TokenAmount.From(0.4m, Token.Egld()),
                     BidState = BidState.Created
                 }));
 
@@ -153,7 +167,8 @@ namespace Elrond.TradeOffer.Web.TestData
 
         private static decimal Million(decimal input) => input * 1000000;
 
-        private async Task<ElrondUser> ApplyUserAsync(long userId, string address, ElrondNetwork network = ElrondNetwork.Devnet, CancellationToken ct = default)
+        private async Task<ElrondUser> ApplyUserAsync(
+            long userId, string address, ElrondNetwork network = ElrondNetwork.Devnet, CancellationToken ct = default)
         {
             var user = await _userManager.GetAsync(userId, CancellationToken.None);
             user.Address = address;

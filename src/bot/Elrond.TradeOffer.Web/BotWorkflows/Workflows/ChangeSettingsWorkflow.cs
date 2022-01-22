@@ -1,6 +1,7 @@
 ﻿using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.Database;
 using Elrond.TradeOffer.Web.Extensions;
+using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Erdcsharp.Domain.Exceptions;
@@ -16,6 +17,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IUserRepository _userManager;
         private readonly IElrondApiService _elrondApiService;
         private readonly IUserContextManager _userContextManager;
+        private readonly INetworkStrategies _networkStrategies;
         private const string SetDevNetQuery = "setDevNet";
         private const string SetTestNetQuery = "setTestNet";
         private const string SetMainNetQuery = "setMainNet";
@@ -24,11 +26,13 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         public ChangeSettingsWorkflow(
             IUserRepository userManager,
             IElrondApiService elrondApiService,
-            IUserContextManager userContextManager)
+            IUserContextManager userContextManager,
+            INetworkStrategies networkStrategies)
         {
             _userManager = userManager;
             _elrondApiService = elrondApiService;
             _userContextManager = userContextManager;
+            _networkStrategies = networkStrategies;
         }
 
         public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
@@ -45,53 +49,52 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             if (query.Data == CommonQueries.ChangeNetworkOrAddressQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await ChangeNetworkOrAddress(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
             if (query.Data == SetDevNetQuery)
             {
-                var elrondUser = await _userManager.GetAsync(userId, ct);
-                elrondUser.Network = ElrondNetwork.Devnet;
-                await _userManager.AddOrUpdateAsync(elrondUser, ct);
-
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
-                await ChangeNetworkOrAddress(client, userId, chatId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+                await ChangeNetworkAsync(client, userId, chatId, ElrondNetwork.Devnet, ct);
                 return WorkflowResult.Handled();
             }
             if (query.Data == SetTestNetQuery)
             {
-                var elrondUser = await _userManager.GetAsync(userId, ct);
-                elrondUser.Network = ElrondNetwork.Testnet;
-                await _userManager.AddOrUpdateAsync(elrondUser, ct);
-
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
-                await ChangeNetworkOrAddress(client, userId, chatId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+                await ChangeNetworkAsync(client, userId, chatId, ElrondNetwork.Testnet, ct);
                 return WorkflowResult.Handled();
             }
             if (query.Data == SetMainNetQuery)
             {
-                var elrondUser = await _userManager.GetAsync(userId, ct);
-                elrondUser.Network = ElrondNetwork.Mainnet;
-                await _userManager.AddOrUpdateAsync(elrondUser, ct);
-
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
-                await ChangeNetworkOrAddress(client, userId, chatId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+                await ChangeNetworkAsync(client, userId, chatId, ElrondNetwork.Mainnet, ct);
                 return WorkflowResult.Handled();
             }
             if (query.Data == ChangeAddressQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 return await AskForWalletAddress(client, chatId, ct);
             }
 
             return WorkflowResult.Unhandled();
         }
 
-        private async Task DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
+        private async Task ChangeNetworkAsync(ITelegramBotClient client, long userId, long chatId, ElrondNetwork network, CancellationToken ct)
         {
-            await client.DeleteMessageAsync(chatId, previousMessageId, ct);
+            var strategy = _networkStrategies.GetStrategy(network);
+            if (strategy.IsNetworkAvailable())
+            {
+                var elrondUser = await _userManager.GetAsync(userId, ct);
+                elrondUser.Network = network;
+                await _userManager.AddOrUpdateAsync(elrondUser, ct);
+                await ChangeNetworkOrAddress(client, userId, chatId, ct);
+                return;
+            }
+
+            await client.SendTextMessageAsync(chatId, $"The network {network} is currently not available", cancellationToken: ct);
+            await ChangeNetworkOrAddress(client, userId, chatId, ct);
         }
 
         public async Task<WorkflowResult> ProcessMessageAsync(ITelegramBotClient client, Message message, CancellationToken ct)
@@ -106,9 +109,10 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return WorkflowResult.Unhandled();
             }
 
-            var context = _userContextManager.Get(message.From.Id);
+            var (context, oldMessageId) = _userContextManager.Get(message.From.Id);
             if (context == UserContext.EnterWalletAddress)
             {
+                await client.TryDeleteMessageAsync(message.Chat.Id, oldMessageId, ct);
                 return await ChangeAddressAsync(client, message, ct);
             }
 
@@ -121,7 +125,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var replyMessage = $"<b>Your current address:</b> {elrondUser.ShortedAddress}\n" +
                                $"<b>Network:</b> {elrondUser.Network}\n\n" +
                                "Choose your action:";
-
+            
             var buttons = new List<InlineKeyboardButton[]>();
             if (elrondUser.Network == ElrondNetwork.Devnet)
             {
@@ -203,12 +207,12 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
         private static async Task<WorkflowResult> AskForWalletAddress(ITelegramBotClient client, long chatId, CancellationToken ct)
         {
-            await client.SendTextMessageAsync(
+            var sentMessage = await client.SendTextMessageAsync(
                 chatId,
                 "What is your wallet address? (erd...)",
                 cancellationToken: ct);
-
-            return WorkflowResult.Handled(UserContext.EnterWalletAddress);
+            
+            return WorkflowResult.Handled(UserContext.EnterWalletAddress, sentMessage.MessageId);
         }
     }
 }

@@ -2,6 +2,7 @@
 using Elrond.TradeOffer.Web.BotWorkflows.OffersTemporary;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.BotWorkflows.Workflows;
+using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Telegram.Bot;
@@ -11,7 +12,7 @@ using Telegram.Bot.Types.Enums;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows
 {
-    public class ElrondTradeOfferBotService : IHostedService, IDisposable
+    public sealed class ElrondTradeOfferBotService : IHostedService, IDisposable
     {
         private readonly ITemporaryOfferManager _temporaryOfferManager;
         private readonly ITemporaryBidManager _temporaryBidManager;
@@ -19,7 +20,11 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         private readonly ITransactionGenerator _transactionGenerator;
         private readonly IBotManager _botManager;
         private readonly IUserContextManager _userContextManager;
+        private readonly INetworkStrategies _networkStrategies;
+        private readonly IBotNotificationsHelper _botNotificationHelper;
+        private readonly IFeatureStatesManager _featureStatesManager;
         private readonly Func<IOfferRepository> _offerRepositoryFactory;
+        private readonly ILogger<ElrondTradeOfferBotService> _logger;
         private readonly Func<IUserRepository> _userRepositoryFactory;
         private readonly CancellationTokenSource _cts;
         
@@ -30,8 +35,12 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             ITransactionGenerator transactionGenerator,
             IBotManager botManager,
             IUserContextManager userContextManager,
+            INetworkStrategies networkStrategies,
+            IBotNotificationsHelper botNotificationHelper,
+            IFeatureStatesManager featureStatesManager,
             Func<IUserRepository> userRepositoryFactory,
-            Func<IOfferRepository> offerRepositoryFactory)
+            Func<IOfferRepository> offerRepositoryFactory,
+            ILogger<ElrondTradeOfferBotService> logger)
         {
             _temporaryOfferManager = temporaryOfferManager;
             _temporaryBidManager = temporaryBidManager;
@@ -39,8 +48,12 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             _transactionGenerator = transactionGenerator;
             _botManager = botManager;
             _userContextManager = userContextManager;
+            _networkStrategies = networkStrategies;
+            _botNotificationHelper = botNotificationHelper;
+            _featureStatesManager = featureStatesManager;
             _userRepositoryFactory = userRepositoryFactory;
             _offerRepositoryFactory = offerRepositoryFactory;
+            _logger = logger;
             _cts = new CancellationTokenSource();
         }
 
@@ -72,7 +85,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                         }
 
                         var userId = update.CallbackQuery.From.Id;
-                        _userContextManager.AddOrUpdate(userId, workflowResult.NewUserContext);
+                        _userContextManager.AddOrUpdate(userId, (workflowResult.NewUserContext, workflowResult.OldMessageId));
 
                         await AnswerCallbackAsync(client, update, ct);
                         return;
@@ -93,37 +106,47 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                         }
 
                         var fromId = update.Message.From.Id;
-                        _userContextManager.AddOrUpdate(fromId, workflowResult.NewUserContext);
+                        _userContextManager.AddOrUpdate(fromId, (workflowResult.NewUserContext, workflowResult.OldMessageId));
                         return;
                     }
                 }
             }
             catch (ApiRequestException ex)
             {
+                _logger.LogError(ex, "Unexpected ApiRequestException.");
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Unexpected exception.");
             }
         }
 
-        private IBotProcessor[] GetWorkflows()
+        private IEnumerable<IBotProcessor> GetWorkflows()
         {
             var userRepository = _userRepositoryFactory();
             var offerRepository = _offerRepositoryFactory();
-            var startmenuWorkflow = new StartMenuWorkflow();
+            var startmenuWorkflow = new StartMenuWorkflow(userRepository, _featureStatesManager);
             var offerListWorkflow = new OfferListWorkflow(
-                userRepository, offerRepository, _transactionGenerator, _elrondApiService);
+                userRepository, 
+                offerRepository, 
+                _transactionGenerator, 
+                _elrondApiService, 
+                _botNotificationHelper, 
+                _networkStrategies,
+                _userContextManager,
+                startmenuWorkflow);
 
             var botWorkflows = new IBotProcessor[]
             {
                 startmenuWorkflow,
                 new OfferCreationWorkflow(userRepository, _userContextManager, _temporaryOfferManager, 
-                    offerRepository, _elrondApiService, startmenuWorkflow.StartPage),
+                    offerRepository, _elrondApiService, _networkStrategies, startmenuWorkflow),
                 offerListWorkflow,
                 new BidCreationWorkflow(
                     userRepository, _userContextManager, offerRepository, _temporaryBidManager, 
-                    _elrondApiService, offerListWorkflow, startmenuWorkflow.StartPage),
-                new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager),
+                    _elrondApiService, offerListWorkflow, _botNotificationHelper, _networkStrategies,
+                    startmenuWorkflow),
+                new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager, _networkStrategies),
             };
 
             return botWorkflows;
@@ -148,6 +171,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
 
         private Task HandleErrorAsync(ITelegramBotClient client, Exception exception, CancellationToken ct)
         {
+            _logger.LogError(exception, "An unhandled telegram exception has occured");
             return Task.CompletedTask;
         }
 

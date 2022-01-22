@@ -1,6 +1,6 @@
 {
-    "name": "elrond_trade_offer",
-    "comment": "add then check",
+    "name": "accept_offer_bidder_sends_different_amount ",
+    "comment": "trying to accept an offer, but bidder sends wrong amount",
     "gasSchedule": "v3",
     "steps": [
         {
@@ -8,14 +8,18 @@
             "accounts": {
                 "address:owner": {
                     "nonce": "1",
-                    "balance": "0"
+                    "balance": "100"
+                },
+                "address:bidder": {
+                    "nonce": "2",
+                    "balance": "900"
                 }
             },
             "newAddresses": [
                 {
                     "creatorAddress": "address:owner",
                     "creatorNonce": "1",
-                    "newAddress": "sc:adder"
+                    "newAddress": "sc:sctrader"
                 }
             ]
         },
@@ -25,9 +29,7 @@
             "tx": {
                 "from": "address:owner",
                 "contractCode": "file:../output/elrond_trade_offer.wasm",
-                "arguments": [
-                    "5"
-                ],
+                "arguments": [],
                 "gasLimit": "5,000,000",
                 "gasPrice": "0"
             },
@@ -40,59 +42,54 @@
             }
         },
         {
-            "step": "scQuery",
+            "step": "scCall",
             "txId": "2",
             "tx": {
-                "to": "sc:adder",
-                "function": "getSum",
-                "arguments": []
+                "from": "address:owner",
+                "to": "sc:sctrader",
+                "function": "offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000", 
+                    "",
+                    "500",
+                    ""
+                ],
+                "value": "100",
+                "gasLimit": "9,000,000",
+                "gasPrice": "0"
             },
             "expect": {
-                "out": [
-                    "5"
-                ],
+                "out": [],
                 "status": "",
-                "logs": []
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
             }
         },
         {
             "step": "scCall",
             "txId": "3",
             "tx": {
-                "from": "address:owner",
-                "to": "sc:adder",
-                "function": "add",
+                "from": "address:bidder",
+                "to": "sc:sctrader",
+                "function": "accept_offer",
                 "arguments": [
-                    "3"
+                    "0x00000000000000000000000000000000",
+                    "",
+                    "100",
+                    ""
                 ],
-                "gasLimit": "5,000,000",
+                "value": "0",
+                "gasLimit": "8,000,000",
                 "gasPrice": "0"
             },
             "expect": {
                 "out": [],
-                "status": "",
+                "status": "4",
+                "message": "str:Wrong token or not the correct number of tokens",
                 "logs": [],
                 "gas": "*",
                 "refund": "*"
-            }
-        },
-        {
-            "step": "checkState",
-            "accounts": {
-                "address:owner": {
-                    "nonce": "*",
-                    "balance": "0",
-                    "storage": {},
-                    "code": ""
-                },
-                "sc:adder": {
-                    "nonce": "0",
-                    "balance": "0",
-                    "storage": {
-                        "str:sum": "8"
-                    },
-                    "code": "file:../output/elrond_trade_offer.wasm"
-                }
             }
         }
     ]

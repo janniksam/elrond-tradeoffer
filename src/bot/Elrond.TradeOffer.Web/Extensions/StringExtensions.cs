@@ -11,6 +11,6 @@ public static class StringExtensions
 
         var rightPart = maxlengthWithoutReplacement / 2;
         var leftPart = maxlengthWithoutReplacement - rightPart;
-        return string.Concat(str[..leftPart], replacement, str.Substring(str.Length - rightPart - 1, rightPart));
+        return string.Concat(str[..leftPart], replacement, str.Substring(str.Length - rightPart, rightPart));
     }
 }

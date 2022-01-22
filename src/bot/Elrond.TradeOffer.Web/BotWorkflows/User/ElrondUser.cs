@@ -10,11 +10,12 @@ public record ElrondUser
         UserId = userId;
     }
 
-    private ElrondUser(long userId, string? address, ElrondNetwork network)
+    private ElrondUser(long userId, string? address, ElrondNetwork network, bool isAdmin)
     {
         UserId = userId;
         Address = address;
         Network = network;
+        IsAdmin = isAdmin;
     }
 
     public long UserId { get; }
@@ -23,7 +24,9 @@ public record ElrondUser
 
     public ElrondNetwork Network { get; set; }
 
-    public static ElrondUser From(DbUser user) => new(user.Id, user.Address, user.Network);
+    public bool IsAdmin { get; set; }
+
+    public static ElrondUser From(DbUser user) => new(user.Id, user.Address, user.Network, user.IsAdmin);
  
     public string ShortedAddress => Address?.TrimMid(30, "...") ?? "Not set";
 }

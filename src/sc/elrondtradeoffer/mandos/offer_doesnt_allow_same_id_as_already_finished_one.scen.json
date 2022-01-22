@@ -1,0 +1,79 @@
+{
+    "name": "offer_doesnt_allow_same_id_as_already_finished_one",
+    "comment": "offer with same id was already finished",
+    "gasSchedule": "v3",
+    "steps": [
+        {
+            "step": "setState",
+            "accounts": {
+                "address:owner": {
+                    "nonce": "1",
+                    "balance": "100"
+                }
+            },
+            "newAddresses": [
+                {
+                    "creatorAddress": "address:owner",
+                    "creatorNonce": "1",
+                    "newAddress": "sc:sctrader"
+                }
+            ]
+        },
+        {
+            "step": "scDeploy",
+            "txId": "1",
+            "tx": {
+                "from": "address:owner",
+                "contractCode": "file:../output/elrond_trade_offer.wasm",
+                "arguments": [],
+                "gasLimit": "5,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "setState",
+            "comment": "set the offer_id to finished",
+            "accounts": {
+                "sc:sctrader": {
+                    "storage": {
+                        "str:finished_offer|nested:0x00000000000000000000000000000000": "u8:1"
+                    },
+                    "code": "file:../output/elrond_trade_offer.wasm"
+                }
+            }
+        },
+        {
+            "step": "scCall",
+            "txId": "2",
+            "tx": {
+                "from": "address:owner",
+                "to": "sc:sctrader",
+                "function": "offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000", 
+                    "",
+                    "10",
+                    ""
+                ],
+                "value": "10",
+                "gasLimit": "9,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "4",
+                "message": "str:An offer with this id was already existing",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        }
+    ]
+}

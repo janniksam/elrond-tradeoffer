@@ -12,10 +12,14 @@ namespace Elrond.TradeOffer.Web.Repositories
     public class SqlOfferRepository : IOfferRepository
     {
         private readonly IDbContextFactory<ElrondTradeOfferDbContext> _dbContextFactory;
+        private readonly ILogger<SqlOfferRepository> _logger;
 
-        public SqlOfferRepository(IDbContextFactory<ElrondTradeOfferDbContext> dbContextFactory)
+        public SqlOfferRepository(
+            IDbContextFactory<ElrondTradeOfferDbContext> dbContextFactory,
+            ILogger<SqlOfferRepository> logger)
         {
             _dbContextFactory = dbContextFactory;
+            _logger = logger;
         }
 
         public async Task<Guid> PlaceAsync(ElrondUser user, TemporaryOffer temporaryOffer, long chatId, CancellationToken ct)
@@ -33,12 +37,11 @@ namespace Elrond.TradeOffer.Web.Repositories
 
             var dbOffer = new DbOffer(
                 Guid.NewGuid(),
-                DateTime.UtcNow, 
                 user.Network,
                 user.UserId,
                 chatId,
                 temporaryOffer.Description,
-                temporaryOffer.Token.Identifier,
+                temporaryOffer.Token.Id,
                 temporaryOffer.Token.Name,
                 temporaryOffer.Token.Nonce,
                 temporaryOffer.Token.DecimalPrecision,
@@ -68,10 +71,24 @@ namespace Elrond.TradeOffer.Web.Repositories
             return Offer.From(dbOffer);
         }
 
-        public async Task<IReadOnlyCollection<Offer>> GetAllOffersAsync(ElrondNetwork network, CancellationToken ct)
+        public async Task<IReadOnlyCollection<Offer>> GetOffersAsync(ElrondNetwork network, OfferFilter filter, int maxAmount, CancellationToken ct)
         {
             await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
-            var dbOffers = await dbContext.Offers.Where(p => p.Network == network).ToArrayAsync(ct);
+            
+            var query = dbContext.Offers.Where(p => p.Network == network);
+            if (filter.OnlyMyOwn)
+            {
+                query = query.Where(p => p.CreatorUserId == filter.UserId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+            {
+                query = query.Where(p =>
+                    EF.Functions.Like(p.TokenName, $"%{filter.SearchTerm}%") ||
+                    EF.Functions.Like(p.TokenId, $"%{filter.SearchTerm}%"));
+            }
+
+            var dbOffers = await query.OrderByDescending(p => p.CreatedOn).Take(maxAmount).ToArrayAsync(ct);
             return dbOffers.Select(Offer.From).ToArray();
         }
 
@@ -103,9 +120,8 @@ namespace Elrond.TradeOffer.Web.Repositories
                 temporaryBid.OfferId.Value, 
                 temporaryBid.CreatorUserId, 
                 chatId, 
-                DateTime.UtcNow, 
                 temporaryBid.BidState,
-                temporaryBid.Token.Identifier,
+                temporaryBid.Token.Id,
                 temporaryBid.Token.Name,
                 temporaryBid.Token.Nonce,
                 temporaryBid.Token.DecimalPrecision,
@@ -128,14 +144,18 @@ namespace Elrond.TradeOffer.Web.Repositories
             if (bid.State is BidState.Created or BidState.Accepted or BidState.Declined)
             {
                 dbContext.Remove(bid);
-            }
-            else
-            {
-                bid.State = BidState.Removed;
+                await dbContext.SaveChangesAsync(ct);
+                return true;
             }
 
-            await dbContext.SaveChangesAsync(ct);
-            return true;
+            if(bid.State is BidState.ReadyForClaiming)
+            {
+                bid.State = BidState.RemovedWhileOnBlockchain;
+                await dbContext.SaveChangesAsync(ct);
+                return true;
+            }
+
+            return false;
         }
 
         public async Task<IReadOnlyCollection<Bid>> GetBidsAsync(Guid offerId, Expression<Func<DbBid, bool>> bidPredicate, CancellationToken ct)
@@ -167,6 +187,18 @@ namespace Elrond.TradeOffer.Web.Repositories
                 .Include(p => p.Offer)
                 .Where(p => p.State == BidState.ReadyForClaiming)
                 .ToArrayAsync(ct);
+            return bids.Select(p => (Bid.From(p), Offer.From(p.Offer))).ToArray();
+        }
+
+        public async Task<IReadOnlyCollection<(Bid, Offer)>> GetCancellingOffersAsync(CancellationToken ct)
+        {
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
+
+            var bids = await dbContext.Bids
+                .Include(p => p.Offer)
+                .Where(p => p.State == BidState.CancelInitiated)
+                .ToArrayAsync(ct);
+
             return bids.Select(p => (Bid.From(p), Offer.From(p.Offer))).ToArray();
         }
 
@@ -228,10 +260,57 @@ namespace Elrond.TradeOffer.Web.Repositories
             }
             catch(Exception ex)
             {
+                _logger.LogError(ex, "Error while completing the offer.");
                 await transaction.RollbackAsync(ct);
                 throw;
             }
-            
+        }
+
+        public async Task<(bool sucessfullyAccepted, IReadOnlyCollection<Bid> declinedBids)> AcceptAsync(Guid offerId, long bidUserId, CancellationToken ct)
+        {
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
+            var offer = await dbContext.Offers.Include(p => p.Bids).FirstOrDefaultAsync(p => p.Id == offerId, ct);
+            if (offer == null)
+            {
+                return (false, Array.Empty<Bid>());
+            }
+
+            if (offer.Bids.All(p => p.CreatorUserId != bidUserId && p.State is BidState.Created))
+            {
+                return (false, Array.Empty<Bid>());
+            }
+
+            var declinedBids = new List<Bid>();
+            foreach (var offerBid in offer.Bids)
+            {
+                if (offerBid.CreatorUserId == bidUserId)
+                {
+                    offerBid.State = BidState.Accepted;
+                }
+                else
+                {
+                    offerBid.State = BidState.Declined;
+                    declinedBids.Add(Bid.From(offerBid));
+                }
+            }
+
+            await dbContext.SaveChangesAsync(ct);
+            return (true, declinedBids.ToArray());
+        }
+
+        public async Task<Bid?> GetPendingBidAsync(Guid offerId, CancellationToken ct)
+        {
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
+            var acceptedBid = await dbContext.Bids.FirstOrDefaultAsync(
+                p => p.OfferId == offerId && 
+                     p.State == BidState.Accepted || p.State == BidState.TradeInitiated, 
+                ct);
+            if (acceptedBid == null)
+            {
+                return null;
+            }
+
+            return Bid.From(acceptedBid);
         }
 
         private static object[] BidQueryKey(Guid offerId, long userId)
@@ -239,38 +318,50 @@ namespace Elrond.TradeOffer.Web.Repositories
             return new object[] { offerId, userId };
         }
 
-        public async Task<bool> CancelAsync(Guid offerId, CancellationToken ct)
+        public async Task<CancelOfferResult> CancelAsync(Guid offerId, long userId, CancellationToken ct)
         {
             await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
             await using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
 
             try
             {
-                var offer = await dbContext.Offers.FirstOrDefaultAsync(p => p.Id == offerId, ct);
+                var offer = await dbContext.Offers.Include(p => p.Bids).FirstOrDefaultAsync(p => p.Id == offerId, ct);
                 if (offer == null)
                 {
-                    return false;
+                    return CancelOfferResult.OfferNotFound;
+                }
+
+                if (offer.CreatorUserId != userId)
+                {
+                    return CancelOfferResult.InvalidUser;
                 }
 
                 foreach (var bid in offer.Bids)
                 {
-                    if (bid.State is not BidState.Created or BidState.Accepted or BidState.Declined)
+                    if (bid.State is BidState.CancelInitiated or
+                                     BidState.ReadyForClaiming or 
+                                     BidState.Removed or 
+                                     BidState.RemovedWhileOnBlockchain)
                     {
-                        await transaction.RollbackAsync(ct);
-                        return false;
+                        bid.State = BidState.CancelInitiated;
+                        await dbContext.SaveChangesAsync(ct);
+                        await transaction.CommitAsync(ct);
+                        return CancelOfferResult.CreatorNeedsToRetrieveTokens;
                     }
-
+                    
                     dbContext.Remove(bid);
                 }
 
                 dbContext.Remove(offer);
+                await dbContext.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
-                return true;
+
+                return CancelOfferResult.Success;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Error while cancelling the offer.");
                 await transaction.RollbackAsync(ct);
-                Console.WriteLine(e);
                 throw;
             }
         }

@@ -7,9 +7,11 @@ using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Elrond.TradeOffer.Web.TestData;
+using Elrond.TradeOffer.Web.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using MySqlConnector;
+
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
@@ -23,6 +25,17 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 builder.Services.AddSingleton<IConfiguration>(configuration);
+
+builder.Services.AddLogging(b =>
+{
+    b.AddConsole();
+    var loggingSection = configuration.GetSection("Logging");
+    b.AddFile(loggingSection,
+        fileLoggerOpts =>
+        {
+            fileLoggerOpts.FormatLogFileName = fName => string.Format(fName, DateTime.UtcNow);
+        });
+});
 
 // cache
 builder.Services.AddSingleton<IUserCacheManager, UserCacheManager>();
@@ -52,6 +65,8 @@ builder.Services.AddDbContextFactory<ElrondTradeOfferDbContext>(o =>
 builder.Services.AddTransient<IElrondApiService, ElrondApiService>();
 builder.Services.AddTransient<ITransactionGenerator, TransactionGenerator>();
 builder.Services.AddTransient<ITestDataProvider, TestDataProvider>();
+builder.Services.AddTransient<IBotNotificationsHelper, BotNotificationsHelper>();
+builder.Services.AddSingleton<IFeatureStatesManager, FeatureStatesManager>();
 
 // repositories
 builder.Services.AddTransient<IOfferRepository, SqlOfferRepository>();
@@ -63,6 +78,7 @@ builder.Services.AddHostedService<ElrondTradeOfferBotService>();
 builder.Services.AddHostedService<ElrondTradeStatusPollService>();
 
 var app = builder.Build();
+LoggingFactory.LogFactory = app.Services.GetService<ILoggerFactory>();
 
 if (dataProvider == "memory")
 {

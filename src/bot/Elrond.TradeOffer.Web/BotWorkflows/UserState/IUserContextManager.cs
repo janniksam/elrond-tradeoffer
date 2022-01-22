@@ -2,6 +2,7 @@
 
 public interface IUserContextManager
 {
-    UserContext Get(long userId);
-    void AddOrUpdate(long userId, UserContext state);
+    (UserContext Context, int? OldMessageId) Get(long userId);
+
+    void AddOrUpdate(long userId, (UserContext Context, int? OldMessageId) state);
 }

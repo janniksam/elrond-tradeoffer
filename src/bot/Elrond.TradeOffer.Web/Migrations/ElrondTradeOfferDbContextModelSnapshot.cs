@@ -27,7 +27,7 @@ namespace Elrond.TradeOffer.Web.Migrations
                     b.Property<long>("CreatorUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime(6)");
 
                     b.Property<long>("CreatorChatId")
@@ -45,7 +45,7 @@ namespace Elrond.TradeOffer.Web.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<string>("TokenIdentifier")
+                    b.Property<string>("TokenId")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -59,11 +59,44 @@ namespace Elrond.TradeOffer.Web.Migrations
                     b.Property<int>("TokenPrecision")
                         .HasColumnType("int");
 
+                    b.Property<DateTime>("UpdatedOn")
+                        .HasColumnType("datetime(6)");
+
                     b.HasKey("OfferId", "CreatorUserId");
 
                     b.HasIndex("CreatorUserId");
 
                     b.ToTable("Bids");
+                });
+
+            modelBuilder.Entity("Elrond.TradeOffer.Web.Database.DbFeatureState", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<long?>("ChangedById")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp(6)");
+
+                    b.Property<DateTime>("UpdatedOn")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedById");
+
+                    b.ToTable("FeatureStates");
                 });
 
             modelBuilder.Entity("Elrond.TradeOffer.Web.Database.DbOffer", b =>
@@ -72,7 +105,7 @@ namespace Elrond.TradeOffer.Web.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("CreatedOn")
                         .HasColumnType("datetime(6)");
 
                     b.Property<long>("CreatorChatId")
@@ -97,7 +130,7 @@ namespace Elrond.TradeOffer.Web.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<string>("TokenIdentifier")
+                    b.Property<string>("TokenId")
                         .IsRequired()
                         .HasColumnType("longtext");
 
@@ -110,6 +143,9 @@ namespace Elrond.TradeOffer.Web.Migrations
 
                     b.Property<int>("TokenPrecision")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedOn")
+                        .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
 
@@ -126,8 +162,22 @@ namespace Elrond.TradeOffer.Web.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("longtext");
 
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<int>("Network")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp(6)");
+
+                    b.Property<DateTime>("UpdatedOn")
+                        .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
 
@@ -151,6 +201,15 @@ namespace Elrond.TradeOffer.Web.Migrations
                     b.Navigation("CreatorUser");
 
                     b.Navigation("Offer");
+                });
+
+            modelBuilder.Entity("Elrond.TradeOffer.Web.Database.DbFeatureState", b =>
+                {
+                    b.HasOne("Elrond.TradeOffer.Web.Database.DbUser", "ChangedBy")
+                        .WithMany()
+                        .HasForeignKey("ChangedById");
+
+                    b.Navigation("ChangedBy");
                 });
 
             modelBuilder.Entity("Elrond.TradeOffer.Web.Database.DbOffer", b =>

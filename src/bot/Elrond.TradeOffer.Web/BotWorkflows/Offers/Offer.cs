@@ -1,14 +1,14 @@
-﻿using Elrond.TradeOffer.Web.BotWorkflows.Bids;
-using Elrond.TradeOffer.Web.Database;
+﻿using Elrond.TradeOffer.Web.Database;
 using Elrond.TradeOffer.Web.Models;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows.Offers;
 
 public class Offer
 {
-    public Offer(
+    private Offer(
         Guid id,
-        DateTime createdAt,
+        DateTime createdOn,
+        DateTime updatedOn,
         ElrondNetwork network,
         long creatorUserId,
         long creatorChatId,
@@ -19,14 +19,17 @@ public class Offer
         Network = network;
         CreatorUserId = creatorUserId;
         CreatorChatId = creatorChatId;
-        CreatedAt = createdAt;
+        CreatedOn = createdOn;
+        UpdatedOn = updatedOn;
         Amount = amount;
         Description = description;
     }
-
-    public Guid Id { get; }
     
-    public DateTime CreatedAt { get; }
+    public Guid Id { get; }
+
+    public DateTime CreatedOn { get; }
+
+    public DateTime UpdatedOn { get; }
     
     public ElrondNetwork Network { get; }
     
@@ -42,12 +45,13 @@ public class Offer
     {
         return new Offer(
             dbOffer.Id,
-            dbOffer.CreatedAt,
+            dbOffer.CreatedOn,
+            dbOffer.UpdatedOn,
             dbOffer.Network,
             dbOffer.CreatorUserId,
             dbOffer.CreatorChatId,
             TokenAmount.From(dbOffer.TokenAmount,
-                new Token(dbOffer.TokenName, dbOffer.TokenIdentifier, dbOffer.TokenNonce, dbOffer.TokenPrecision)),
+                new Token(dbOffer.TokenName, dbOffer.TokenId, dbOffer.TokenNonce, dbOffer.TokenPrecision)),
             dbOffer.Description);
     }
 }

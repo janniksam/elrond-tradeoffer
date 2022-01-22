@@ -1,0 +1,116 @@
+{
+    "name": "accept_offer_successfully_exchanges_tokens",
+    "comment": "successfully exchanging the tokens",
+    "gasSchedule": "v3",
+    "steps": [
+        {
+            "step": "setState",
+            "accounts": {
+                "address:owner": {
+                    "nonce": "1",
+                    "balance": "100"
+                },
+                "address:bidder": {
+                    "nonce": "2",
+                    "balance": "900"
+                }
+            },
+            "newAddresses": [
+                {
+                    "creatorAddress": "address:owner",
+                    "creatorNonce": "1",
+                    "newAddress": "sc:sctrader"
+                }
+            ]
+        },
+        {
+            "step": "scDeploy",
+            "txId": "1",
+            "tx": {
+                "from": "address:owner",
+                "contractCode": "file:../output/elrond_trade_offer.wasm",
+                "arguments": [],
+                "gasLimit": "5,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "scCall",
+            "txId": "2",
+            "tx": {
+                "from": "address:owner",
+                "to": "sc:sctrader",
+                "function": "offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000", 
+                    "",
+                    "500",
+                    ""
+                ],
+                "value": "100",
+                "gasLimit": "9,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "scCall",
+            "txId": "3",
+            "tx": {
+                "from": "address:bidder",
+                "to": "sc:sctrader",
+                "function": "accept_offer",
+                "arguments": [
+                    "0x00000000000000000000000000000000",
+                    "",
+                    "100",
+                    ""
+                ],
+                "value": "500",
+                "gasLimit": "8,000,000",
+                "gasPrice": "0"
+            },
+            "expect": {
+                "out": [],
+                "status": "",
+                "logs": [],
+                "gas": "*",
+                "refund": "*"
+            }
+        },
+        {
+            "step": "checkState",
+            "comment": "check that offer was finished successfully",
+            "accounts": {
+                "sc:sctrader": {
+                    "balance": "0",
+                    "storage": {
+                        "str:finished_offer|nested:0x00000000000000000000000000000000": "u8:1"
+                    },
+                    "code": "file:../output/elrond_trade_offer.wasm"
+                },
+                "address:owner":{
+                    "balance": "500",
+                    "nonce": "*"
+                },
+                "address:bidder":{
+                    "balance": "500",
+                    "nonce": "*"
+                }
+            }
+        }
+    ]
+}

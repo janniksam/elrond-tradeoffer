@@ -25,6 +25,10 @@
             {
                 // supress
             }
+            catch (Exception ex)
+            {
+                LoggingFactory.LogFactory?.CreateLogger(typeof(ApiExceptionHelper)).LogError(ex, "Unhandled exception occured");
+            }
         }
 
         private static IEnumerable<string> GetMessagesToSupress(ApiError errorsToSupress)

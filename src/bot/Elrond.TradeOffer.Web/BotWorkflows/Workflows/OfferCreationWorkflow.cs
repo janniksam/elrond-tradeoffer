@@ -3,9 +3,12 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using Elrond.TradeOffer.Web.BotWorkflows.OffersTemporary;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
+using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Models;
+using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
+using Elrond.TradeOffer.Web.Utils;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -17,12 +20,15 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
     {
         private const string PlaceOfferTokenQueryPrefix = "CreateOfferToken_";
         private const string PlaceOfferQuery = "PlaceOffer";
+        private const int MinDescriptionLength = 5;
+        private const int MaxDescriptionLength = 50;
         private readonly IUserRepository _userManager;
         private readonly IUserContextManager _userContextManager;
         private readonly ITemporaryOfferManager _temporaryOfferManager;
         private readonly IOfferRepository _offerRepository;
         private readonly IElrondApiService _elrondApiService;
-        private readonly Func<ITelegramBotClient, long, CancellationToken, Task> _backToStart;
+        private readonly INetworkStrategies _networkStrategies;
+        private readonly IStartMenuNavigation _startMenuNavigation;
 
         public OfferCreationWorkflow(
             IUserRepository userManager,
@@ -30,14 +36,16 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             ITemporaryOfferManager temporaryOfferManager, 
             IOfferRepository offerRepository, 
             IElrondApiService elrondApiService,
-            Func<ITelegramBotClient, long, CancellationToken, Task> backToStart)
+            INetworkStrategies networkStrategies,
+            IStartMenuNavigation startMenuNavigation)
         {
             _userManager = userManager;
             _userContextManager = userContextManager;
             _temporaryOfferManager = temporaryOfferManager;
             _offerRepository = offerRepository;
             _elrondApiService = elrondApiService;
-            _backToStart = backToStart;
+            _networkStrategies = networkStrategies;
+            _startMenuNavigation = startMenuNavigation;
         }
 
         public async Task<WorkflowResult> ProcessMessageAsync(ITelegramBotClient client, Message message, CancellationToken ct)
@@ -55,13 +63,15 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             var messageText = message.Text;
             var chatId = message.Chat.Id;
             var context = _userContextManager.Get(message.From.Id);
-            if (context == UserContext.EnterOfferAmount)
+            if (context.Context == UserContext.EnterOfferAmount)
             {
+                await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
                 return await CreateOfferOnTokenAmountChosenAsync(client, message.From.Id, chatId, messageText, ct);
             }
             
-            if (context == UserContext.EnterOfferDescription)
+            if (context.Context == UserContext.EnterOfferDescription)
             {
+                await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
                 return await CreateOfferOnDescriptionChosenAsync(client, message.From.Id, chatId, messageText, ct);
             }
 
@@ -82,30 +92,25 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             if (query.Data == CommonQueries.CreateAnOfferQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 return await CreateANewOfferAsync(client, userId, chatId, ct);
             }
 
             if (query.Data.StartsWith(PlaceOfferTokenQueryPrefix))
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 var tokenIdentifier = query.Data[PlaceOfferTokenQueryPrefix.Length..];
-                return await CreateOfferOnTokenIdentifierChosenAsync(client, userId, chatId, tokenIdentifier, ct);
+                return await CreateOfferOnTokenChosenAsync(client, userId, chatId, tokenIdentifier, ct);
             }
 
             if (query.Data == PlaceOfferQuery)
             {
-                await DeleteMessageAsync(client, chatId, previousMessageId, ct);
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 await PlaceOfferAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
             return WorkflowResult.Unhandled();
-        }
-
-        private async Task DeleteMessageAsync(ITelegramBotClient client, long chatId, int previousMessageId, CancellationToken ct)
-        {
-            await client.DeleteMessageAsync(chatId, previousMessageId, ct);
         }
 
         private async Task<WorkflowResult> CreateANewOfferAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
@@ -119,7 +124,19 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
+                return WorkflowResult.Handled();
+            }
+
+            var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
+            var networkReady = await networkStrategy.IsNetworkReadyAsync(ct);
+            if (!networkReady)
+            {
+                await client.SendTextMessageAsync(
+                    chatId,
+                    $"The network {elrondUser.Network} is currently not available.",
+                    cancellationToken: ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
@@ -127,7 +144,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             return await CreateOfferWizard(client, userId, chatId, balances, ct);
         }
 
-        private async Task<WorkflowResult> CreateOfferOnTokenIdentifierChosenAsync(ITelegramBotClient client, long userId, long chatId, string tokenIdentifier, CancellationToken ct)
+        private async Task<WorkflowResult> CreateOfferOnTokenChosenAsync(ITelegramBotClient client, long userId, long chatId, string tokenIdentifier, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
             if (elrondUser.Address == null)
@@ -136,15 +153,21 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
             var balances = (await _elrondApiService.GetBalancesAsync(elrondUser.Address, elrondUser.Network)).ToArray();
-            var token = balances.FirstOrDefault(p => p.Token.Identifier == tokenIdentifier)?.Token;
-            if (token != null)
+            var token = balances.FirstOrDefault(p => p.Token.Identifier == tokenIdentifier);
+            if (token?.Token == null)
             {
-                _temporaryOfferManager.SetTokenIdentifier(userId, token);
+                return await CreateOfferWizard(client, userId, chatId, balances, ct);
+            }
+            
+            _temporaryOfferManager.SetToken(userId, token.Token);
+            if (token.Token.IsNft() && token.Amount.Value.IsOne)
+            {
+                _temporaryOfferManager.SetTokenAmount(userId, token.Amount);
             }
 
             return await CreateOfferWizard(client, userId, chatId, balances, ct);
@@ -159,7 +182,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
@@ -217,16 +240,16 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return WorkflowResult.Handled();
             }
 
             var balances = (await _elrondApiService.GetBalancesAsync(elrondUser.Address, elrondUser.Network)).ToArray();
-            if (string.IsNullOrWhiteSpace(description) || description.Length < 10)
+            if (string.IsNullOrWhiteSpace(description) || description.Length is < MinDescriptionLength or > MaxDescriptionLength)
             {
                 await client.SendTextMessageAsync(
                     chatId,
-                    "Invalid description. The description needs to have a length of atleast 10 characters.",
+                    $"Invalid description. The description needs to have a length between {MinDescriptionLength} and {MaxDescriptionLength} characters.",
                     cancellationToken: ct);
                 return await CreateOfferWizard(client, userId, chatId, balances, ct);
             }
@@ -244,7 +267,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return;
             }
 
@@ -257,7 +280,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Incomplete order. Try again.",
                     cancellationToken: ct);
-                await _backToStart(client, chatId, ct);
+                await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
                 return;
             }
 
@@ -268,14 +291,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 chatId,
                 "The offer has been placed.",
                 cancellationToken: ct);
-            await _backToStart(client, chatId, ct);
+            await _startMenuNavigation.ShowStartMenuAsync(client, userId, chatId, ct);
         }
 
         private async Task<WorkflowResult> CreateOfferWizard(ITelegramBotClient client, long userId, long chatId,
             IReadOnlyCollection<ElrondToken> balances, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
-
+            var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
             var temporaryOffer = _temporaryOfferManager.Get(userId);
             if (temporaryOffer.Token == null)
             {
@@ -287,10 +310,15 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     buttons.Add(new[]
                     {
                         InlineKeyboardButton.WithCallbackData(
-                            $"{tokenBalance.Token.Identifier} (Available: {tokenBalance.Amount.ToCurrencyString()})",
+                            $"{tokenBalance.Token} (Available: {tokenBalance.Amount.ToCurrencyString()})",
                             $"{PlaceOfferTokenQueryPrefix}{tokenBalance.Token.Identifier}")
                     });
                 }
+
+                buttons.Add(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery),
+                });
 
                 await client.SendTextMessageAsync(
                     chatId,
@@ -313,36 +341,39 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 }
 
                 var message = $"You're trying to create an offer on the {elrondUser.Network}.\n" +
-                              $"You chose the token {temporaryOffer.Token.Identifier} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in you wallet).\n\n" +
+                              $"You chose the token {temporaryOffer.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()} in your wallet).\n\n" +
                               $"How many {temporaryOffer.Token.Identifier} would you like to offer?";
 
-                await client.SendTextMessageAsync(
+                var sentMessage = await client.SendTextMessageAsync(
                     chatId,
                     message,
                     ParseMode.Html,
+                    disableWebPagePreview: true,
                     cancellationToken: ct);
 
-                return WorkflowResult.Handled(UserContext.EnterOfferAmount);
+                return WorkflowResult.Handled(UserContext.EnterOfferAmount, sentMessage.MessageId);
             }
 
             if (temporaryOffer.Description == null)
             {
                 var message = $"You're trying to create an offer for the {elrondUser.Network}.\n" +
-                              $"You chose to offer {temporaryOffer.Amount.ToCurrencyStringWithIdentifier()}.\n\n" +
+                              $"You chose to offer {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}.\n\n" +
                               "Please choose a description now, which can help other users to have an idea of what you would like to get out of the trade:";
 
-                await client.SendTextMessageAsync(
+                var sentMessage = await client.SendTextMessageAsync(
                     chatId,
                     message,
+                    ParseMode.Html,
+                    disableWebPagePreview: true,
                     cancellationToken: ct);
 
-                return WorkflowResult.Handled(UserContext.EnterOfferDescription);
+                return WorkflowResult.Handled(UserContext.EnterOfferDescription, sentMessage.MessageId);
             }
 
             var summary = "<b><u>Summary of your offer:</u></b>\n\n" +
                           $"<b>Network:</b> {elrondUser.Network}\n" +
                           $"<b>Address:</b> {elrondUser.ShortedAddress}\n" +
-                          $"<b>Offer:</b> {temporaryOffer.Amount.ToCurrencyStringWithIdentifier()}\n" +
+                          $"<b>Offer:</b> {temporaryOffer.Amount.ToHtmlUrl(networkStrategy)}\n" +
                           $"<b>Description:</b> {temporaryOffer.Description}\n\n" +
                           "Do you want to place the offer now?";
 
@@ -355,6 +386,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     InlineKeyboardButton.WithCallbackData("Cancel", CommonQueries.BackToHomeQuery)
                 }),
                 parseMode: ParseMode.Html,
+                disableWebPagePreview: true,
                 cancellationToken: ct);
 
             return WorkflowResult.Handled();

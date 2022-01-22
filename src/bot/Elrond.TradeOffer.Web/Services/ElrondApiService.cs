@@ -5,6 +5,7 @@ using Elrond.TradeOffer.Web.Network;
 using Erdcsharp.Configuration;
 using Erdcsharp.Provider;
 using Erdcsharp.Provider.Dtos;
+using Newtonsoft.Json;
 using Token = Elrond.TradeOffer.Web.Models.Token;
 
 namespace Elrond.TradeOffer.Web.Services;
@@ -12,10 +13,14 @@ namespace Elrond.TradeOffer.Web.Services;
 public class ElrondApiService : IElrondApiService
 {
     private readonly INetworkStrategies _networkStrategies;
+    private readonly ILogger<ElrondApiService> _logger;
 
-    public ElrondApiService(INetworkStrategies networkStrategies)
+    public ElrondApiService(
+        INetworkStrategies networkStrategies,
+        ILogger<ElrondApiService> logger)
     {
         _networkStrategies = networkStrategies;
+        _logger = logger;
     }
 
     public async Task<IEnumerable<ElrondToken>> GetBalancesAsync(string address, ElrondNetwork network)
@@ -25,26 +30,63 @@ public class ElrondApiService : IElrondApiService
         var client = new HttpClient();
         var provider = new ElrondProvider(client, new ElrondNetworkConfiguration(networkStrategy.Network));
         var account = await provider.GetAccount(address);
-        var esdtTokens = await provider.GetEsdtTokens(address);
+        var esdtTokens = await GetEsdtTokens(address, networkStrategy);
+        var nftsTokens = await GetNftTokens(address, networkStrategy);
+
         var tokens = new List<ElrondToken>
         {
             new(Token.Egld(), account.Balance)
         };
 
-        foreach (var (_, value) in esdtTokens.Esdts)
+        foreach (var token in esdtTokens)
         {
-            if (value.Nonce != 0)
-            {
-                tokens.Add(new ElrondToken(Token.EsdtNft(value.TokenIdentifier, value.TokenIdentifier, value.Nonce), value.Balance));
-            }
-            else
-            {
-                tokens.Add(new ElrondToken(Token.Esdt(value.TokenIdentifier, value.TokenIdentifier, 18), value.Balance));
-            }
+            tokens.Add(new ElrondToken(Token.Esdt(token.name, token.identifier, token.decimals), token.balance));
+        }
+        
+        foreach (var token in nftsTokens)
+        {
+            tokens.Add(new ElrondToken(Token.Nft(token.name, token.ticker, token.decimals, (ulong)token.nonce), token.balance ?? "1"));
         }
 
         return tokens;
     }
+
+    private async Task<IReadOnlyCollection<EsdtToken>> GetEsdtTokens(string address, INetworkStrategy networkStrategy)
+    {
+        try
+        {
+            var client = new HttpClient();
+            var apiGateway = networkStrategy.GetApiGateway();
+            var tokenUrl = $"{apiGateway}/accounts/{address}/tokens";
+            var tokensRaw = await client.GetStringAsync(tokenUrl);
+            var tokens = JsonConvert.DeserializeObject<List<EsdtToken>>(tokensRaw);
+            return tokens ?? (IReadOnlyCollection<EsdtToken>)Array.Empty<EsdtToken>();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error while retrieving tokens");
+            return Array.Empty<EsdtToken>();
+        }
+    }
+
+    private async Task<IReadOnlyCollection<NftToken>> GetNftTokens(string address, INetworkStrategy networkStrategy)
+    {
+        try
+        {
+            var client = new HttpClient();
+            var apiGateway = networkStrategy.GetApiGateway();
+            var tokenUrl = $"{apiGateway}/accounts/{address}/nfts";
+            var tokensRaw = await client.GetStringAsync(tokenUrl);
+            var tokens = JsonConvert.DeserializeObject<List<NftToken>>(tokensRaw);
+            return tokens ?? (IReadOnlyCollection<NftToken>)Array.Empty<NftToken>();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error while retrieving tokens");
+            return Array.Empty<NftToken>();
+        }
+    }
+
 
     public async Task<AccountDto> GetAccountAsync(ElrondNetwork network, string address)
     {

@@ -14,9 +14,9 @@ public interface IOfferRepository
 
     Task<Offer?> GetAsync(Guid offerId, CancellationToken ct);
 
-    Task<IReadOnlyCollection<Offer>> GetAllOffersAsync(ElrondNetwork network, CancellationToken ct);
+    Task<IReadOnlyCollection<Offer>> GetOffersAsync(ElrondNetwork network, OfferFilter filter, int maxAmount, CancellationToken ct);
         
-    Task<bool> CancelAsync(Guid orderId, CancellationToken ct);
+    Task<CancelOfferResult> CancelAsync(Guid orderId, long userId, CancellationToken ct);
     
     Task<bool> PlaceBidAsync(TemporaryBid temporaryOffer, long chatId, CancellationToken ct);
     
@@ -27,6 +27,8 @@ public interface IOfferRepository
     Task<IReadOnlyCollection<(Bid, Offer)>> GetInitiatedOffersAsync(CancellationToken ct);
 
     Task<IReadOnlyCollection<(Bid, Offer)>> GetClaimableOffersAsync(CancellationToken ct);
+    
+    Task<IReadOnlyCollection<(Bid, Offer)>> GetCancellingOffersAsync(CancellationToken ct);
 
     Task<IReadOnlyCollection<Bid>> GetBidsAsync(Guid offerId, CancellationToken ct);
     
@@ -35,4 +37,8 @@ public interface IOfferRepository
     Task<Bid?> GetBidAsync(Guid offerId, long userId, CancellationToken ct);
     
     Task CompleteOfferAsync(Guid offerId, CancellationToken ct);
+
+    Task<(bool sucessfullyAccepted, IReadOnlyCollection<Bid> declinedBids)> AcceptAsync(Guid offerId, long bidUserId, CancellationToken ct);
+
+    Task<Bid?> GetPendingBidAsync(Guid offerId, CancellationToken ct);
 }

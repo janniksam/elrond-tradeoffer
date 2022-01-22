@@ -1,4 +1,6 @@
 ﻿using System.Numerics;
+using Elrond.TradeOffer.Web.Network;
+using Elrond.TradeOffer.Web.Utils;
 using Erdcsharp.Domain.Exceptions;
 
 namespace Elrond.TradeOffer.Web.Models
@@ -32,7 +34,18 @@ namespace Elrond.TradeOffer.Web.Models
 
         public string ToCurrencyStringWithIdentifier()
         {
-            return $"{ToDenominated().TrimEnd('0').TrimEnd('.')} {Token.Identifier}";
+            return $"{ToCurrencyString()} {Token.Identifier}";
+        }
+
+        public string ToHtmlUrl(INetworkStrategy networkStrategy)
+        {
+            if (Token.IsEgld())
+            {
+                return $"{ToCurrencyString()} {Token.Identifier}";
+            }
+
+            var tokenUrl = Token.ToHtmlLink(networkStrategy);
+            return $"{ToCurrencyString()} {tokenUrl}";
         }
 
         private string ToDenominated()
@@ -41,7 +54,7 @@ namespace Elrond.TradeOffer.Web.Models
             var num1 = str1.Length - Token.DecimalPrecision;
             var num2 = num1 < 0 ? 0 : num1;
             var str2 = str1.Substring(num2, Token.DecimalPrecision);
-            return (num2 == 0 ? "0" : str1.Substring(0, num2)) + "." + str2;
+            return (num2 == 0 ? "0" : str1[..num2]) + "." + str2;
         }
 
         public override string ToString() => Value.ToString();
@@ -72,7 +85,7 @@ namespace Elrond.TradeOffer.Web.Models
             var numerator = (1 - ((bits[3] >> 30) & 2)) *
                             unchecked(((BigInteger)(uint)bits[2] << 64) |
                                       ((BigInteger)(uint)bits[1] << 32) |
-                                      (BigInteger)(uint)bits[0]);
+                                      (uint)bits[0]);
             var denominator = BigInteger.Pow(10, (bits[3] >> 16) & 0xff);
             return (numerator, denominator);
         }
