@@ -22,6 +22,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private const string AcceptBidQueryPrefix = "ABid_";
         private const string DeclineBidQueryPrefix = "DBid_";
         private const string RemoveBidQueryPrefix = "RemoveBid_";
+        private const string RemoveBidConfirmedQueryPrefix = "RemoveBidConfirmed_";
         private const string RefreshInitiateStatusQueryPrefix = "RefreshInitiateStatus_";
         private const string SearchOfferQuery = "SearchOffers";
         private const string ShowMyOfferQuery = "ShowMyOffers";
@@ -117,6 +118,19 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (query.Data.StartsWith(RemoveBidQueryPrefix))
             {
                 var offerIdRaw = query.Data[RemoveBidQueryPrefix.Length..];
+                if (!Guid.TryParse(offerIdRaw, out var offerId))
+                {
+                    return await InvalidOfferIdAsync(client, chatId, ct);
+                }
+
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+                await ConfirmRemoveBidAsync(client, userId, chatId, offerId, ct);
+                return WorkflowResult.Handled();
+            }
+
+            if (query.Data.StartsWith(RemoveBidConfirmedQueryPrefix))
+            {
+                var offerIdRaw = query.Data[RemoveBidConfirmedQueryPrefix.Length..];
                 if (!Guid.TryParse(offerIdRaw, out var offerId))
                 {
                     return await InvalidOfferIdAsync(client, chatId, ct);
@@ -838,6 +852,38 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 cancellationToken: ct);
         }
 
+        private async Task ConfirmRemoveBidAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
+        {
+            var offer = await _offerRepository.GetAsync(offerId, ct);
+            if (offer == null)
+            {
+                await ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
+                return;
+            }
+
+            var bid = await _offerRepository.GetBidAsync(offerId, userId, ct);
+            if (bid == null)
+            {
+                await ShowOfferAsync(client, userId, chatId, offerId, ct);
+                return;
+            }
+
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("✖ Yes, remove it now", $"{RemoveBidConfirmedQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("No", CommonQueries.ShowOfferQuery(offerId))
+                },
+            };
+
+            await client.SendTextMessageAsync(
+                chatId,
+                $"Do you really want to remove your bid of {bid.Amount.ToCurrencyStringWithIdentifier()} for the offer of {offer.Amount.ToCurrencyStringWithIdentifier()} now?",
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
+        }
+
         private async Task RemoveBidAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
         {
             var success = await _offerRepository.RemoveBidAsync(offerId, userId, ct);
@@ -850,7 +896,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 await ShowOfferAsync(client, userId, chatId, offerId, ct);
                 return;
             }
-
+            
             await client.SendTextMessageAsync(
                 chatId,
                 "Could not remove your bid.",
