@@ -18,7 +18,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
     public class OfferListWorkflow : IBotProcessor, IOfferNavigation
     {
         private const string InitiateTradeOfferQueryPrefix = "Initiate_";
-        private const string CancelOfferQueryPrefix = "CancelOffer_";
+        private const string CancelOfferQueryPrefix = "COffer_";
+        private const string CancelOfferConfirmedQueryPrefix = "COfferConfirmed_";
         private const string AcceptBidQueryPrefix = "ABid_";
         private const string DeclineBidQueryPrefix = "DBid_";
         private const string RemoveBidQueryPrefix = "RemoveBid_";
@@ -105,6 +106,19 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (query.Data.StartsWith(CancelOfferQueryPrefix))
             {
                 var offerIdRaw = query.Data[CancelOfferQueryPrefix.Length..];
+                if (!Guid.TryParse(offerIdRaw, out var offerId))
+                {
+                    return await InvalidOfferIdAsync(client, chatId, ct);
+                }
+
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+                await ConfirmCancelOfferAsync(client, userId, chatId, offerId, ct);
+                return WorkflowResult.Handled();
+            }
+
+            if (query.Data.StartsWith(CancelOfferConfirmedQueryPrefix))
+            {
+                var offerIdRaw = query.Data[CancelOfferConfirmedQueryPrefix.Length..];
                 if (!Guid.TryParse(offerIdRaw, out var offerId))
                 {
                     return await InvalidOfferIdAsync(client, chatId, ct);
@@ -352,6 +366,31 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 ct);
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
+        }
+
+        private async Task ConfirmCancelOfferAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
+        {
+            var offer = await _offerRepository.GetAsync(offerId, ct);
+            if (offer == null)
+            {
+                await NoOfferFoundAsync(client, userId, chatId, ct);
+                return;
+            }
+
+            var buttons = new List<InlineKeyboardButton[]>
+            {
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("✖ Yes, cancel it now", $"{CancelOfferConfirmedQueryPrefix}{offer.Id}"),
+                    InlineKeyboardButton.WithCallbackData("No", CommonQueries.ShowOfferQuery(offerId))
+                },
+            };
+
+            await client.SendTextMessageAsync(
+                chatId,
+                $"Do you really want to cancel your offer of {offer.Amount.ToCurrencyStringWithIdentifier()}?",
+                replyMarkup: new InlineKeyboardMarkup(buttons),
+                cancellationToken: ct);
         }
 
         private async Task CancelOfferAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
