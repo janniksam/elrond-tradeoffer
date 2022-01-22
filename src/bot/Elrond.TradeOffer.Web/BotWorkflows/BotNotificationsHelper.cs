@@ -2,6 +2,7 @@
 using Elrond.TradeOffer.Web.BotWorkflows.Offers;
 using Elrond.TradeOffer.Web.Models;
 using Elrond.TradeOffer.Web.Network;
+using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Utils;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
@@ -33,8 +34,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                     disableWebPagePreview: true,
                     replyMarkup: new InlineKeyboardMarkup(new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("View offer and proceed",
-                            $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),
+                        InlineKeyboardButton.WithCallbackData("View offer and proceed", $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),
                     }),
                     cancellationToken: ct);
             });
@@ -50,8 +50,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                     disableWebPagePreview: true,
                     replyMarkup: new InlineKeyboardMarkup(new[]
                     {
-                        InlineKeyboardButton.WithCallbackData("View offer",
-                            $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),
+                        InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),
                     }),
                     cancellationToken: ct);
             });
@@ -80,7 +79,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             await ApiExceptionHelper.RunAndSupressAsync(() =>
                 client.SendTextMessageAsync(
                     offer.CreatorChatId,
-                    $"You trade offer has been cancelled. You claimed back you {offer.Amount.ToHtmlUrl(strategy)}.",
+                    $"You trade offer has been cancelled. You claimed back your {offer.Amount.ToHtmlUrl(strategy)}.",
                     ParseMode.Html,
                     disableWebPagePreview: true,
                     cancellationToken: ct));
@@ -97,26 +96,21 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             var strategy = _networkStrategies.GetStrategy(offer.Network);
             var offeredTokens = offer.Amount.ToHtmlUrl(strategy);
             var acceptedTokens = acceptedBid.Amount.ToHtmlUrl(strategy);
+     
             await client.SendTextMessageAsync(
                 chatId, $"You accepted the bid of {acceptedTokens} for the offer of {offeredTokens} was accepted.",
                 ParseMode.Html,
                 disableWebPagePreview: true,
                 cancellationToken: ct);
 
-            await ApiExceptionHelper.RunAndSupressAsync(async () =>
-            {
-                await client.SendTextMessageAsync(
-                    acceptedBid.CreatorChatId,
-                    $"Your bid of {acceptedTokens} for the offer of {offeredTokens} has been accepted.",
-                    ParseMode.Html,
-                    disableWebPagePreview: true,
-                    replyMarkup: new InlineKeyboardMarkup(new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("Check it out",
-                            $"{CommonQueries.ShowOfferQuery(acceptedBid.OfferId)}"),
-                    }),
-                    cancellationToken: ct);
-            });
+            await SendNotificationAsync(
+                client,
+                acceptedBid.CreatorChatId,
+                $"Your bid of {acceptedTokens} for the offer of {offeredTokens} has been accepted.",
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(acceptedBid.OfferId)}"),
+                }, ct);
 
             foreach (var declinedBid in declinedBids)
             {
@@ -138,15 +132,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             await client.SendTextMessageAsync(chatId, $"You declined the bid of {bid.Amount.ToCurrencyStringWithIdentifier()}.",
                 cancellationToken: ct);
 
-            await ApiExceptionHelper.RunAndSupressAsync(() =>
-                client.SendTextMessageAsync(bid.CreatorChatId,
-                    $"Your bid of {bid.Amount.ToCurrencyStringWithIdentifier()} has been declined.",
-                    replyMarkup: new InlineKeyboardMarkup(new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("Check it out",
-                            $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),
-                    }),
-                    cancellationToken: ct));
+            await SendNotificationAsync(
+                client,
+                bid.CreatorChatId,
+                $"Your bid of {bid.Amount.ToCurrencyStringWithIdentifier()} has been declined.",
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),
+                }, ct);
         }
 
         public async Task NotifyOnBidPlacedAsync(ITelegramBotClient client, Offer offer, long bidChatId, TokenAmount bidAmount, CancellationToken ct)
@@ -154,25 +147,66 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             var strategy = _networkStrategies.GetStrategy(offer.Network);
             var bidTokens = bidAmount.ToHtmlUrl(strategy);
             var offeredTokens = offer.Amount.ToHtmlUrl(strategy);
-
+           
             await client.SendTextMessageAsync(
                 bidChatId,
                 $"You placed a bid of {bidTokens} for the offer of {offeredTokens}.",
                 ParseMode.Html,
                 disableWebPagePreview: true,
                 cancellationToken: ct);
+            
+            await SendNotificationAsync(
+                client,
+                offer.CreatorChatId,
+                $"You received a bid ({bidTokens}) for your offer of {offeredTokens}.",
+                new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(offer.Id)}")
+                }, ct);
+        }
 
+        public async Task NotifyOfferCreatorOnBidRemovedAsync(ITelegramBotClient client, long chatId, Offer offer, RemoveBidResult removeBidResult, CancellationToken ct)
+        {
+            await client.SendTextMessageAsync(
+                chatId,
+                "Your bid was removed successfully.",
+                cancellationToken: ct);
+
+            switch (removeBidResult)
+            {
+                case RemoveBidResult.RemovedAccepted:
+                    await SendNotificationAsync(
+                        client,
+                        offer.CreatorChatId,
+                        $"The bid you accepted for your offer of {offer.Amount.ToCurrencyStringWithIdentifier()} has been removed.",
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(offer.Id)}"),
+                        }, ct);
+                    break;
+                case RemoveBidResult.RemovedWhileOnBlockchain:
+                    await SendNotificationAsync(
+                        client,
+                        offer.CreatorChatId,
+                        $"The bid you accepted for your offer of {offer.Amount.ToCurrencyStringWithIdentifier()} has been removed. Reclaim your tokens now:",
+                        new[]
+                        {
+                            InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(offer.Id)}"),
+                        }, ct);
+                    break;
+            }
+        }
+
+        private static async Task SendNotificationAsync(ITelegramBotClient client, long chatId, string htmlMessage,
+            InlineKeyboardButton[] buttons, CancellationToken ct)
+        {
             await ApiExceptionHelper.RunAndSupressAsync(() =>
                 client.SendTextMessageAsync(
-                    offer.CreatorChatId,
-                    $"You received a bid ({bidTokens}) for your offer of {offeredTokens}.",
+                    chatId,
+                    htmlMessage,
                     ParseMode.Html,
                     disableWebPagePreview: true,
-                    replyMarkup: new InlineKeyboardMarkup(new[]
-                    {
-                        InlineKeyboardButton.WithCallbackData("Check it out",
-                            $"{CommonQueries.ShowOfferQuery(offer.Id)}"),
-                    }),
+                    replyMarkup: new InlineKeyboardMarkup(buttons),
                     cancellationToken: ct));
         }
     }
