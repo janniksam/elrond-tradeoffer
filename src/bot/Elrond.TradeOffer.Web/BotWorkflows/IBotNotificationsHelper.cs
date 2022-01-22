@@ -1,6 +1,7 @@
 ﻿using Elrond.TradeOffer.Web.BotWorkflows.Bids;
 using Elrond.TradeOffer.Web.BotWorkflows.Offers;
 using Elrond.TradeOffer.Web.Models;
+using Elrond.TradeOffer.Web.Repositories;
 using Telegram.Bot;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows;
@@ -21,4 +22,5 @@ public interface IBotNotificationsHelper
 
     Task NotifyOnBidDeclined(ITelegramBotClient client, long chatId, Bid bid, CancellationToken ct);
     Task NotifyOnBidPlacedAsync(ITelegramBotClient client, Offer offer, long bidChatId, TokenAmount bidAmount, CancellationToken ct);
+    Task NotifyOfferCreatorOnBidRemovedAsync(ITelegramBotClient client, long chatId, Offer offer, RemoveBidResult result, CancellationToken ct);
 }

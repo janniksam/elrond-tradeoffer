@@ -132,30 +132,37 @@ namespace Elrond.TradeOffer.Web.Repositories
             return true;
         }
 
-        public async Task<bool> RemoveBidAsync(Guid offerId, long userId, CancellationToken ct)
+        public async Task<RemoveBidResult> RemoveBidAsync(Guid offerId, long userId, CancellationToken ct)
         {
             await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
             var bid = await dbContext.Bids.FindAsync(BidQueryKey(offerId, userId), ct);
             if (bid == null)
             {
-                return false;
+                return RemoveBidResult.Failed;
+            }
+
+            if (bid.State is BidState.TradeInitiated)
+            {
+                return RemoveBidResult.FailedBecauseInitiated;
             }
 
             if (bid.State is BidState.Created or BidState.Accepted or BidState.Declined)
             {
                 dbContext.Remove(bid);
                 await dbContext.SaveChangesAsync(ct);
-                return true;
+                return bid.State == BidState.Accepted ?
+                    RemoveBidResult.RemovedAccepted :
+                    RemoveBidResult.RemovedCreatedOrDeclined;
             }
-
+            
             if(bid.State is BidState.ReadyForClaiming)
             {
                 bid.State = BidState.RemovedWhileOnBlockchain;
                 await dbContext.SaveChangesAsync(ct);
-                return true;
+                return RemoveBidResult.RemovedWhileOnBlockchain;
             }
 
-            return false;
+            return RemoveBidResult.Failed;
         }
 
         public async Task<IReadOnlyCollection<Bid>> GetBidsAsync(Guid offerId, Expression<Func<DbBid, bool>> bidPredicate, CancellationToken ct)

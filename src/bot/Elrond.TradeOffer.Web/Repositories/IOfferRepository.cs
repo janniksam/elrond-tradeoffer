@@ -20,7 +20,7 @@ public interface IOfferRepository
     
     Task<bool> PlaceBidAsync(TemporaryBid temporaryOffer, long chatId, CancellationToken ct);
     
-    Task<bool> RemoveBidAsync(Guid offerId, long userId, CancellationToken ct);
+    Task<RemoveBidResult> RemoveBidAsync(Guid offerId, long userId, CancellationToken ct);
     
     Task<IReadOnlyCollection<Bid>> GetBidsAsync(Guid offerId, Expression<Func<DbBid, bool>> predicate, CancellationToken ct);
 
