@@ -2,7 +2,7 @@
 
 ## Description
 
-The goal of this projects is to allow you to safely exchange tokens between another party and yourself. 
+The goal of this projects is to allow you to safely exchange tokens between you and another party. 
 For this purpose a smart contract will be used and act as a trustee that performs the exchange.
 
 ### Basic workflow

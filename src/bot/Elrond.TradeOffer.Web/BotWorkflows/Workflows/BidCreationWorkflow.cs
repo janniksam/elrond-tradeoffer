@@ -128,10 +128,17 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
 
             var balances = (await _elrondApiService.GetBalancesAsync(elrondUser.Address, elrondUser.Network)).ToArray();
-            var token = balances.FirstOrDefault(p => p.Token.Identifier == tokenIdentifier)?.Token;
-            if (token != null)
+            var token = balances.FirstOrDefault(p => p.Token.Identifier == tokenIdentifier);
+            if (token?.Token == null)
             {
-                _temporaryBidManager.SetToken(userId, token);
+                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+            }
+
+            _temporaryBidManager.SetToken(userId, token.Token);
+
+            if (token.Token.IsNft() && token.Amount.Value.IsOne)
+            {
+                _temporaryBidManager.SetTokenAmount(userId, token.Amount);
             }
 
             return await PlaceBidWizard(client, userId, chatId, balances, ct);
