@@ -85,7 +85,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                         }
 
                         var userId = update.CallbackQuery.From.Id;
-                        _userContextManager.AddOrUpdate(userId, (workflowResult.NewUserContext, workflowResult.OldMessageId));
+                        _userContextManager.AddOrUpdate(userId, (workflowResult.NewUserContext, workflowResult.OldMessageId, workflowResult.AdditionalArgs));
 
                         await AnswerCallbackAsync(client, update, ct);
                         return;
@@ -106,7 +106,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
                         }
 
                         var fromId = update.Message.From.Id;
-                        _userContextManager.AddOrUpdate(fromId, (workflowResult.NewUserContext, workflowResult.OldMessageId));
+                        _userContextManager.AddOrUpdate(fromId, (workflowResult.NewUserContext, workflowResult.OldMessageId, workflowResult.AdditionalArgs));
                         return;
                     }
                 }

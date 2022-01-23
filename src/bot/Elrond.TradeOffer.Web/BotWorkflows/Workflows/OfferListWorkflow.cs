@@ -1,5 +1,4 @@
-﻿using System.Text.RegularExpressions;
-using Elrond.TradeOffer.Web.BotWorkflows.Bids;
+﻿using Elrond.TradeOffer.Web.BotWorkflows.Bids;
 using Elrond.TradeOffer.Web.BotWorkflows.Offers;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.Database;
@@ -8,6 +7,7 @@ using Elrond.TradeOffer.Web.Network;
 using Elrond.TradeOffer.Web.Repositories;
 using Elrond.TradeOffer.Web.Services;
 using Elrond.TradeOffer.Web.Utils;
+using System.Text.RegularExpressions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -22,6 +22,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private const string CancelOfferConfirmedQueryPrefix = "COfferConfirmed_";
         private const string AcceptBidQueryPrefix = "ABid_";
         private const string DeclineBidQueryPrefix = "DBid_";
+        private const string DeclineBidAfterReasonEnteringQueryPrefix = "DBC_";
         private const string RemoveBidQueryPrefix = "RemoveBid_";
         private const string RemoveBidConfirmedQueryPrefix = "RemoveBidConfirmed_";
         private const string RefreshInitiateStatusQueryPrefix = "RefreshInitiateStatus_";
@@ -201,7 +202,31 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 }
 
                 await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
-                await DeclineBidAsync(client, userId, chatId, offerId, bidUserId, ct);
+                return await PromptForDeclineBidReasonAsync(client, chatId, offerId, bidUserId, ct);
+            }
+
+            if(query.Data.StartsWith(DeclineBidAfterReasonEnteringQueryPrefix))
+            {
+                var parametersRaw = query.Data[DeclineBidAfterReasonEnteringQueryPrefix.Length..].Split('_');
+                if (parametersRaw.Length != 2)
+                {
+                    await client.SendTextMessageAsync(chatId, "Invalid parameters for AcceptBid", cancellationToken: ct);
+                    return WorkflowResult.Handled();
+                }
+
+                if (!Guid.TryParse(parametersRaw[0], out var offerId))
+                {
+                    return await InvalidOfferIdAsync(client, chatId, ct);
+                }
+
+                if (!long.TryParse(parametersRaw[1], out var bidUserId))
+                {
+                    await client.SendTextMessageAsync(chatId, "Invalid bidUserId.", cancellationToken: ct);
+                    return WorkflowResult.Handled();
+                }
+
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+                await DeclineBidAsync(client, userId, chatId, offerId, bidUserId, null, ct);
                 return WorkflowResult.Handled();
             }
 
@@ -234,6 +259,23 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             return WorkflowResult.Unhandled();
         }
 
+        private async Task<WorkflowResult> PromptForDeclineBidReasonAsync(ITelegramBotClient client, long chatId, Guid offerId, long bidUserId, CancellationToken ct)
+        {
+            var sentMessage = await client.SendTextMessageAsync(
+                chatId,
+                "Please enter the reason, why you declined their bid? (e.g. \"I want a little bit more than that.\")\n\n" +
+                "If you don't wanna give any reason, press the button below:",
+                ParseMode.Html,
+                disableWebPagePreview: true,
+                replyMarkup: new InlineKeyboardMarkup(new[]
+                {
+                    InlineKeyboardButton.WithCallbackData("I don't wanna give any reason", $"{DeclineBidAfterReasonEnteringQueryPrefix}{offerId}_{bidUserId}")
+                }),
+                cancellationToken: ct);
+
+            return WorkflowResult.Handled(UserContext.EnterDeclineBidReason, sentMessage.MessageId, offerId, bidUserId);
+        }
+
         private async Task<WorkflowResult> EnterSearchTermAsync(ITelegramBotClient client, long chatId, CancellationToken ct)
         {
             var sentMessage = await client.SendTextMessageAsync(
@@ -264,6 +306,21 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             {
                 await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
                 return await SearchOffersAsync(client, userId, chatId, messageText, ct);
+            }
+
+            if (context.Context == UserContext.EnterDeclineBidReason)
+            {
+                if (context.AdditionalArgs.Length != 2 ||
+                    context.AdditionalArgs[0] is not Guid offerId || 
+                    context.AdditionalArgs[1] is not long bidUserId)
+                {
+                    await client.SendTextMessageAsync(chatId, "Could not decline bid. Please contact the developer.", cancellationToken: ct);
+                    return WorkflowResult.Handled();
+                }
+                
+                await client.TryDeleteMessageAsync(chatId, context.OldMessageId, ct);
+                await DeclineBidAsync(client, userId, chatId, offerId, bidUserId, messageText, ct);
+                return WorkflowResult.Handled();
             }
 
             return WorkflowResult.Unhandled();
@@ -1017,8 +1074,17 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             await ShowOfferAsync(client, userId, chatId, offerId, ct);
         }
 
-        private async Task DeclineBidAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, long bidUserId, CancellationToken ct)
+        private async Task DeclineBidAsync(
+            ITelegramBotClient client, 
+            long userId, 
+            long chatId, 
+            Guid offerId,
+            long bidUserId, 
+            string? declineReason, 
+            CancellationToken ct)
         {
+            declineReason ??= "No reason was provided.";
+
             var bid = await _offerRepository.GetBidAsync(offerId, bidUserId, ct);
             if (bid == null)
             {
@@ -1044,7 +1110,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
             else
             {
-                await _botNotificationsHelper.NotifyOnBidDeclined(client, chatId, bid, ct);
+                await _botNotificationsHelper.NotifyOnBidDeclined(client, chatId, bid, declineReason, ct);
             }
 
             await ShowOfferAsync(client, userId, chatId, offerId, ct);

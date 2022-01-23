@@ -127,7 +127,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             }
         }
 
-        public async Task NotifyOnBidDeclined(ITelegramBotClient client, long chatId, Bid bid, CancellationToken ct)
+        public async Task NotifyOnBidDeclined(ITelegramBotClient client, long chatId, Bid bid, string declineReason, CancellationToken ct)
         {
             await client.SendTextMessageAsync(chatId, $"You declined the bid of {bid.Amount.ToCurrencyStringWithIdentifier()}.",
                 cancellationToken: ct);
@@ -135,7 +135,9 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
             await SendNotificationAsync(
                 client,
                 bid.CreatorChatId,
-                $"Your bid of {bid.Amount.ToCurrencyStringWithIdentifier()} has been declined.",
+                $"Your bid of {bid.Amount.ToCurrencyStringWithIdentifier()} has been declined.\n\n" +
+                $"<b>Provided reason:</b> {declineReason}\n\n" +
+                "You can place a new one:",
                 new[]
                 {
                     InlineKeyboardButton.WithCallbackData("View offer", $"{CommonQueries.ShowOfferQuery(bid.OfferId)}"),

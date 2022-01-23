@@ -7,11 +7,13 @@ public class WorkflowResult
     private WorkflowResult(
         bool handled,
         UserContext context = UserContext.None,
-        int? oldMessageId = null)
+        int? oldMessageId = null,
+        params object[] additionalArgs)
     {
         IsHandled = handled;
         NewUserContext = context;
         OldMessageId = oldMessageId;
+        AdditionalArgs = additionalArgs;
     }
 
     public bool IsHandled { get; }
@@ -20,9 +22,11 @@ public class WorkflowResult
     
     public int? OldMessageId { get; }
 
+    public object[] AdditionalArgs { get; }
+
     public static WorkflowResult Handled() => new(true); 
 
-    public static WorkflowResult Handled(UserContext context, int oldMessageId) => new(true, context, oldMessageId); 
+    public static WorkflowResult Handled(UserContext context, int oldMessageId, params object[] additionalInformation) => new(true, context, oldMessageId, additionalInformation); 
 
     public static WorkflowResult Unhandled() => new(false);
 }
