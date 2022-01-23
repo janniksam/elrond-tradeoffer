@@ -307,7 +307,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             var messageText = message.Text;
             var chatId = message.Chat.Id;
-            var (context, oldMessageId) = _userContextManager.Get(message.From.Id);
+            var (context, oldMessageId, _) = _userContextManager.Get(message.From.Id);
             if (context == UserContext.EnterBidAmount)
             {
                 await client.TryDeleteMessageAsync(chatId, oldMessageId, ct);

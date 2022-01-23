@@ -109,7 +109,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return WorkflowResult.Unhandled();
             }
 
-            var (context, oldMessageId) = _userContextManager.Get(message.From.Id);
+            var (context, oldMessageId, _) = _userContextManager.Get(message.From.Id);
             if (context == UserContext.EnterWalletAddress)
             {
                 await client.TryDeleteMessageAsync(message.Chat.Id, oldMessageId, ct);
