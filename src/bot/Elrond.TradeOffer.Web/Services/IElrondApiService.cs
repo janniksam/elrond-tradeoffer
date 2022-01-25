@@ -10,5 +10,6 @@ public interface IElrondApiService
     Task<AccountDto> GetAccountAsync(ElrondNetwork network, string address);
     Task<ConfigDataDto> GetNetworkConfigAsync(ElrondNetwork network);
     Task<bool> IsOfferInSmartContractAsync(ElrondNetwork network, Guid offerId);
-    Task<bool> IsOfferFinishedInSmartContractAsync(ElrondNetwork network, Guid offerId);
+    Task<IReadOnlyCollection<(Guid offerId, OfferFinishStatus status)>> IsOfferFinishedInSmartContractAsync(ElrondNetwork network, Guid[] offerIds);
+    Task<IReadOnlyCollection<(Guid offerId, bool initiated)>> IsOfferInitiatedInSmartContractAsync(ElrondNetwork network, Guid[] offerIds);
 }

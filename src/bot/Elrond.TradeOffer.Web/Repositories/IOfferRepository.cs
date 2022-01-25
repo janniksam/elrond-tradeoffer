@@ -24,11 +24,11 @@ public interface IOfferRepository
     
     Task<IReadOnlyCollection<Bid>> GetBidsAsync(Guid offerId, Expression<Func<DbBid, bool>> predicate, CancellationToken ct);
 
-    Task<IReadOnlyCollection<(Bid, Offer)>> GetInitiatedOffersAsync(CancellationToken ct);
+    Task<IReadOnlyCollection<(Bid Bid, Offer Offer)>> GetInitiatedOffersAsync(CancellationToken ct);
 
-    Task<IReadOnlyCollection<(Bid, Offer)>> GetClaimableOffersAsync(CancellationToken ct);
+    Task<IReadOnlyCollection<(Bid Bid, Offer Offer)>> GetClaimableOffersAsync(CancellationToken ct);
     
-    Task<IReadOnlyCollection<(Bid, Offer)>> GetCancellingOffersAsync(CancellationToken ct);
+    Task<IReadOnlyCollection<(Bid Bid, Offer Offer)>> GetCancellingOffersAsync(CancellationToken ct);
 
     Task<IReadOnlyCollection<Bid>> GetBidsAsync(Guid offerId, CancellationToken ct);
     
