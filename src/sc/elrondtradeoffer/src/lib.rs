@@ -157,7 +157,36 @@ pub trait Trader {
     #[storage_mapper("trade_offer")]
     fn trade_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<TradeOffer<Self::Api>>;
 
+    #[view(are_offers_pending)]
+    fn offers_pending(&self, #[var_args] offer_id_list: VarArgs<ManagedBuffer>) -> ManagedMultiResultVec<u8> {
+        let mut result = ManagedMultiResultVec::new();
+        for offer_id in offer_id_list.iter()
+        {
+            let not_found_offer = self.trade_offer(&offer_id).is_empty();
+            if not_found_offer {
+                result.push(0);
+            }
+            else {
+                result.push(1);
+            }
+        }
+
+        result
+    }
+
     #[view(get_finished_offer)]
     #[storage_mapper("finished_offer")]
     fn finished_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<u8>;
+
+    #[view(get_finished_offer_list)]
+    fn finished_offer_list(&self, #[var_args] offer_id_list: VarArgs<ManagedBuffer>) -> ManagedMultiResultVec<u8> {
+        let mut result = ManagedMultiResultVec::new();        
+        for offer_id in offer_id_list.iter()
+        {
+            let offer_status = self.finished_offer(&offer_id).get();
+            result.push(offer_status);
+        }
+
+        result
+    }
 }
