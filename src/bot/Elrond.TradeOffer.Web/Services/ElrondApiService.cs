@@ -124,7 +124,7 @@ public class ElrondApiService : IElrondApiService
                !string.IsNullOrWhiteSpace(queryResult.Data.ReturnData[0]);
     }
 
-    public async Task<bool> IsOfferFinishedInSmartContractAsync(ElrondNetwork network, Guid offerId)
+    public async Task<IReadOnlyCollection<(Guid offerId, OfferFinishStatus status)>> IsOfferFinishedInSmartContractAsync(ElrondNetwork network, Guid[] offerIds)
     {
         var networkStrategy = _networkStrategies.GetStrategy(network);
 
@@ -134,13 +134,59 @@ public class ElrondApiService : IElrondApiService
         var queryVmRequestDto = new QueryVmRequestDto
         {
             ScAddress = networkStrategy.GetSmartContractAddress(),
-            FuncName = "get_finished_offer",
-            Args = new[] { offerId.ToHex() },
+            FuncName = "get_finished_offer_list",
+            Args = offerIds.Select(p => p.ToHex()).ToArray()
         };
 
         var queryResult = await provider.QueryVm(queryVmRequestDto);
-        return queryResult.Data.ReturnCode == "ok" &&
-               queryResult.Data.ReturnData.Length > 0 &&
-               !string.IsNullOrWhiteSpace(queryResult.Data.ReturnData[0]);
+        if (queryResult.Data.ReturnCode != "ok" ||
+            queryResult.Data.ReturnData.Length != offerIds.Length)
+        {
+            _logger.LogError("Could not get finished offers from sc");
+            return Array.Empty<(Guid, OfferFinishStatus)>();
+        }
+
+        var result = new List<(Guid, OfferFinishStatus)>();
+        for (var i = 0; i < offerIds.Length; i++)
+        {
+            var resultCodeBytes = Convert.FromBase64String(queryResult.Data.ReturnData[i]);
+            var resultCode = resultCodeBytes.FirstOrDefault();
+            result.Add((offerIds[i], (OfferFinishStatus)resultCode));
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyCollection<(Guid offerId, bool initiated)>> IsOfferInitiatedInSmartContractAsync(ElrondNetwork network, Guid[] offerIds)
+    {
+        var networkStrategy = _networkStrategies.GetStrategy(network);
+
+        var client = new HttpClient();
+        var provider = new ElrondProvider(client, new ElrondNetworkConfiguration(networkStrategy.Network));
+
+        var queryVmRequestDto = new QueryVmRequestDto
+        {
+            ScAddress = networkStrategy.GetSmartContractAddress(),
+            FuncName = "are_offers_pending",
+            Args = offerIds.Select(p => p.ToHex()).ToArray()
+        };
+
+        var queryResult = await provider.QueryVm(queryVmRequestDto);
+        if (queryResult.Data.ReturnCode != "ok" ||
+            queryResult.Data.ReturnData.Length != offerIds.Length)
+        {
+            _logger.LogError("Could not get finished offers from sc");
+            return Array.Empty<(Guid, bool)>();
+        }
+
+        var result = new List<(Guid, bool)>();
+        for (var i = 0; i < offerIds.Length; i++)
+        {
+            var resultCodeBytes = Convert.FromBase64String(queryResult.Data.ReturnData[i]);
+            var resultCode = resultCodeBytes.Length != 0 && BitConverter.ToBoolean(resultCodeBytes);
+            result.Add((offerIds[i], resultCode));
+        }
+
+        return result;
     }
 }

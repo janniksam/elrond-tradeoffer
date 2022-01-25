@@ -2,6 +2,7 @@
 using Elrond.TradeOffer.Web.BotWorkflows;
 using Elrond.TradeOffer.Web.Database;
 using Elrond.TradeOffer.Web.Repositories;
+using Telegram.Bot;
 using Timer = System.Timers.Timer;
 
 namespace Elrond.TradeOffer.Web.Services;
@@ -43,12 +44,16 @@ public class ElrondTradeStatusPollService : IHostedService
 
     private async void Poll(object? sender, ElapsedEventArgs e)
     {
+        if (_botManager.Client == null)
+        {
+            return;
+        }
+
         var offerManager = _offerManagerFactory();
         try
         {
-            await PollClaimableOffersAsync(offerManager, CancellationToken.None);
-            await PollInitiatedOffersAsync(offerManager, CancellationToken.None);
-            await PollCancelledOffersAsync(offerManager, CancellationToken.None);
+            await PollInitiatedOffersAsync(_botManager.Client, offerManager, CancellationToken.None);
+            await PollFinishedStatusAsync(_botManager.Client, offerManager, CancellationToken.None);
         }
         catch (Exception exception)
         {
@@ -56,76 +61,76 @@ public class ElrondTradeStatusPollService : IHostedService
         }
     }
 
-    private async Task PollCancelledOffersAsync(IOfferRepository offerManager, CancellationToken ct)
+    private async Task PollFinishedStatusAsync(ITelegramBotClient client, IOfferRepository offerManager, CancellationToken ct)
     {
-        if (_botManager.Client == null)
-        {
-            return;
-        }
+        var claimable = await offerManager.GetClaimableOffersAsync(ct);
+        var cancelled = await offerManager.GetCancellingOffersAsync(ct);
+        var waitingForFinish = claimable.Concat(cancelled).ToArray().GroupBy(p => p.Item2.Network);
 
-        var bids = await offerManager.GetCancellingOffersAsync(ct);
-        foreach (var (bid, offer) in bids)
+        foreach (var offerToCheck in waitingForFinish)
         {
-            var finished = await _elrondApiService.IsOfferFinishedInSmartContractAsync(offer.Network, bid.OfferId);
-            if (!finished)
+            var statusMapping = await _elrondApiService.IsOfferFinishedInSmartContractAsync(
+                offerToCheck.Key,
+                offerToCheck.Select(p => p.Item1.OfferId).ToArray());
+            foreach (var (offerId, status) in statusMapping)
             {
-                continue;
-            }
-
-            await offerManager.CompleteOfferAsync(offer.Id, ct);
-            await _botNotificationsHelper.NotifyOnOfferCancelledAsync(_botManager.Client, offer, ct);
-        }
-    }
-
-    private async Task PollInitiatedOffersAsync(IOfferRepository offerRepository, CancellationToken ct)
-    {
-        if (_botManager.Client == null)
-        {
-            return;
-        }
-
-        var bids = await offerRepository.GetInitiatedOffersAsync(ct);
-        foreach (var (bid, offer) in bids)
-        {
-            var foundInSc = await _elrondApiService.IsOfferInSmartContractAsync(offer.Network, bid.OfferId);
-            if (!foundInSc)
-            {
-                continue;
-            }
-
-            await offerRepository.UpdateBidAsync(
-                bid.OfferId,
-                bid.CreatorUserId,
-                b =>
+                switch (status)
                 {
-                    b.State = BidState.ReadyForClaiming;
-                    return true;
-                },
-                ct);
-
-            await _botNotificationsHelper.NotifyOnOfferSendToBlockchainAsync(_botManager.Client, offer, bid, ct);
+                    case OfferFinishStatus.Cancelled:
+                    {
+                        var initiatedOffer = offerToCheck.First(p => p.Item2.Id == offerId);
+                        await offerManager.CompleteOfferAsync(offerId, CancellationToken.None);
+                        await _botNotificationsHelper.NotifyOnOfferCancelledAsync(client, initiatedOffer.Offer, CancellationToken.None);
+                        break;
+                    }
+                    case OfferFinishStatus.Completed:
+                    {
+                        var claimableOffer = offerToCheck.First(p => p.Item2.Id == offerId);
+                        await offerManager.CompleteOfferAsync(offerId, CancellationToken.None);
+                        await _botNotificationsHelper.NotifyOnTradeCompletedAsync(client, claimableOffer.Offer, claimableOffer.Bid, ct);
+                        break;
+                    }
+                    case OfferFinishStatus.NotFound:
+                    {
+                        break;
+                    }
+                    default:
+                    {
+                        throw new ArgumentOutOfRangeException();
+                    }
+                }
+            }
         }
     }
 
-    private async Task PollClaimableOffersAsync(IOfferRepository offerRepository, CancellationToken ct)
+    private async Task PollInitiatedOffersAsync(ITelegramBotClient client, IOfferRepository offerRepository, CancellationToken ct)
     {
-        if (_botManager.Client == null)
-        {
-            return;
-        }
+        var initiated = await offerRepository.GetInitiatedOffersAsync(ct);
+        var waitingForPayment = initiated.GroupBy(p => p.Item2.Network);
 
-        var bids = await offerRepository.GetClaimableOffersAsync(ct);
-        foreach (var (bid, offer) in bids)
+        foreach (var offerToCheck in waitingForPayment)
         {
-            var finished = await _elrondApiService.IsOfferFinishedInSmartContractAsync(offer.Network, bid.OfferId);
-            if (!finished)
+            var statusMapping = await _elrondApiService.IsOfferInitiatedInSmartContractAsync(
+                offerToCheck.Key, 
+                offerToCheck.Select(p => p.Item1.OfferId).ToArray());
+            foreach (var (offerId, status) in statusMapping)
             {
-                continue;
+                if (status)
+                {
+                    var initiatedOffer = offerToCheck.First(p => p.Item2.Id == offerId);
+                    await offerRepository.UpdateBidAsync(
+                        initiatedOffer.Bid.OfferId,
+                        initiatedOffer.Bid.CreatorUserId,
+                        b =>
+                        {
+                            b.State = BidState.ReadyForClaiming;
+                            return true;
+                        },
+                        ct);
+
+                    await _botNotificationsHelper.NotifyOnOfferSendToBlockchainAsync(client, initiatedOffer.Offer, initiatedOffer.Bid, ct);
+                }
             }
-
-            await offerRepository.CompleteOfferAsync(offer.Id, ct);
-
-            await _botNotificationsHelper.NotifyOnTradeCompletedAsync(_botManager.Client, offer, bid, ct);
         }
     }
 
