@@ -20,7 +20,7 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
     private const string AboutText = "Made with 💚 by [janniksam](https://twitter.com/janniksamc/)\n\n" +
                                      "**Socials**\n" +
                                      "[Telegram Bot Discussion Group](https://t.me/elrondTradeOffer)\n" +
-                                     "[Twitter \\(Coming soon\\)](https://twitter.com)\n\n" +
+                                     "[Twitter](https://twitter.com/elrondTradeBot)\n\n" +
                                      "**Source\\-Code**:\n" +
                                      "[GitHub Repository](https://github.com/janniksam/elrond-tradeoffer)";
 
