@@ -8,5 +8,6 @@ public enum UserContext
     EnterBidAmount,
     EnterWalletAddress,
     EnterOfferSearchTerm,
-    EnterDeclineBidReason
+    EnterDeclineBidReason,
+    EnterOfferCode
 }

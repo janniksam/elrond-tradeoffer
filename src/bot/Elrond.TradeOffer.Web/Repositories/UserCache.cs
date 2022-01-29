@@ -58,11 +58,8 @@ public class UserCacheManager : IUserCacheManager
     public ElrondUser CreateDefault(long userId)
     {
         return _users.GetOrAdd(userId, Default);
-
     }
+
     private static ElrondUser Default(long userId)
-        => new(userId)
-        {
-            Network = ElrondNetwork.Devnet
-        };
+        => new(userId, null, ElrondNetwork.Devnet, false);
 }

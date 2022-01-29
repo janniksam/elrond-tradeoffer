@@ -26,7 +26,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private readonly IOfferRepository _offerRepository;
         private readonly ITemporaryBidManager _temporaryBidManager;
         private readonly IElrondApiService _elrondApiService;
-        private readonly IOfferNavigation _offerNavigation;
+        private readonly IOfferListNavigation _offerListNavigation;
+        private readonly IOfferDetailNavigation _offerDetailNavigation;
         private readonly IBotNotificationsHelper _botNotificationsHelper;
         private readonly INetworkStrategies _networkStrategies;
         private readonly IStartMenuNavigation _startMenuNavigation;
@@ -37,7 +38,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             IOfferRepository offerRepository,
             ITemporaryBidManager temporaryBidManager,
             IElrondApiService elrondApiService,
-            IOfferNavigation offerNavigation,
+            IOfferListNavigation offerListNavigation,
+            IOfferDetailNavigation offerDetailNavigation,
             IBotNotificationsHelper botNotificationsHelper,
             INetworkStrategies networkStrategies,
             IStartMenuNavigation startMenuNavigation)
@@ -47,7 +49,8 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             _offerRepository = offerRepository;
             _temporaryBidManager = temporaryBidManager;
             _elrondApiService = elrondApiService;
-            _offerNavigation = offerNavigation;
+            _offerListNavigation = offerListNavigation;
+            _offerDetailNavigation = offerDetailNavigation;
             _botNotificationsHelper = botNotificationsHelper;
             _networkStrategies = networkStrategies;
             _startMenuNavigation = startMenuNavigation;
@@ -105,7 +108,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "You have set an address before you continue.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOfferAsync(client, userId, chatId, offerId, ct);
+                await _offerDetailNavigation.ShowOfferAsync(client, userId, chatId, offerId, ct);
                 return WorkflowResult.Handled();
             }
 
@@ -166,7 +169,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Incomplete order. Try again.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
+                await _offerListNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return;
             }
 
@@ -180,7 +183,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Bid cannot be placed/updated. Try again.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
+                await _offerDetailNavigation.ShowOfferAsync(client, userId, chatId, temporaryBid.OfferId.Value, ct);
                 return;
             }
 
@@ -191,7 +194,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
 
             await _botNotificationsHelper.NotifyOnBidPlacedAsync(client, offer, chatId, temporaryBid.Amount, ct);
-            await _offerNavigation.ShowOfferAsync(client, userId, chatId, temporaryBid.OfferId.Value, ct);
+            await _offerDetailNavigation.ShowOfferAsync(client, userId, chatId, temporaryBid.OfferId.Value, ct);
         }
 
         private async Task<WorkflowResult> PlaceBidWizard(ITelegramBotClient client, long userId, long chatId, IReadOnlyCollection<ElrondToken> balances, CancellationToken ct)
@@ -211,7 +214,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     "Offer not found.",
                     cancellationToken: ct);
-                await _offerNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
+                await _offerListNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
                 return WorkflowResult.Handled();
             }
 

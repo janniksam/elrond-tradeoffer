@@ -125,26 +125,28 @@ namespace Elrond.TradeOffer.Web.BotWorkflows
         {
             var userRepository = _userRepositoryFactory();
             var offerRepository = _offerRepositoryFactory();
-            var startmenuWorkflow = new StartMenuWorkflow(userRepository, _featureStatesManager);
+            var startmenuWorkflow = new StartMenuWorkflow(userRepository);
             var offerListWorkflow = new OfferListWorkflow(
                 userRepository, 
                 offerRepository, 
-                _transactionGenerator, 
-                _elrondApiService, 
-                _botNotificationHelper, 
                 _networkStrategies,
                 _userContextManager,
                 startmenuWorkflow);
+            var offerDetailWorkflow = new OfferDetailWorkflow(
+                offerRepository, _elrondApiService, _transactionGenerator, _networkStrategies,
+                _userContextManager, _botNotificationHelper, startmenuWorkflow, offerListWorkflow);
 
             var botWorkflows = new IBotProcessor[]
             {
                 startmenuWorkflow,
+                new AdministrationWorkflow(userRepository, _featureStatesManager),
                 new OfferCreationWorkflow(userRepository, _userContextManager, _temporaryOfferManager, 
                     offerRepository, _elrondApiService, _networkStrategies, startmenuWorkflow),
                 offerListWorkflow,
+                offerDetailWorkflow,
                 new BidCreationWorkflow(
                     userRepository, _userContextManager, offerRepository, _temporaryBidManager, 
-                    _elrondApiService, offerListWorkflow, _botNotificationHelper, _networkStrategies,
+                    _elrondApiService, offerListWorkflow, offerDetailWorkflow, _botNotificationHelper, _networkStrategies,
                     startmenuWorkflow),
                 new ChangeSettingsWorkflow(userRepository, _elrondApiService, _userContextManager, _networkStrategies),
             };

@@ -13,7 +13,6 @@ namespace Elrond.TradeOffer.Web.TestData
         private const long MyUserId = 1692646156;
         private const long MyChatId = 1692646156;
         private const long OtherUser1Id = 1;
-        private const long OtherUser2Id = 2;
         private const long OtherUser1ChatId = 1;
 
         private static readonly Token LkmexToken = Token.Esdt("LKMEX", "LKMEX", 18);
@@ -60,7 +59,7 @@ namespace Elrond.TradeOffer.Web.TestData
                     Amount = TokenAmount.From(0.3m, Token.Egld()),
                     BidState = BidState.Created
                 }),
-                (MyChatId, new TemporaryBid(OtherUser2Id)
+                (MyChatId, new TemporaryBid(MyUserId)
                 {
                     Token = Token.Egld(),
                     Amount = TokenAmount.From(0.4m, Token.Egld()),
