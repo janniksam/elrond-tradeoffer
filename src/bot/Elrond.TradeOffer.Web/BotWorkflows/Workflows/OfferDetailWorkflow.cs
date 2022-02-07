@@ -695,7 +695,7 @@ public class OfferDetailWorkflow : IBotProcessor, IOfferDetailNavigation
         if (relevantBid == null || 
             relevantBid.State is BidState.Created or BidState.Accepted or BidState.Declined or BidState.Removed or BidState.TradeInitiated)
         {
-            return InlineKeyboardButton.WithCallbackData("Cancel offer");
+            return InlineKeyboardButton.WithCallbackData("Cancel offer", $"{CancelOfferQueryPrefix}{offer.Id}");
         }
 
         return InlineKeyboardButton.WithCallbackData("Cancel offer and reclaim tokens", $"{CancelOfferQueryPrefix}{offer.Id}");
