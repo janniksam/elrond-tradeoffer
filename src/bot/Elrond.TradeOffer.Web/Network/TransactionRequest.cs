@@ -4,7 +4,7 @@ namespace Elrond.TradeOffer.Web.Network;
 
 public class TransactionRequest
 {
-    public TransactionRequest(string receiver, TokenAmount value, int gasLimit, int gasPrice, string data, long? nonce = null)
+    public TransactionRequest(string? receiver, TokenAmount value, int gasLimit, int gasPrice, string data, long? nonce = null)
     {
         Receiver = receiver;
         Value = value;
@@ -14,7 +14,7 @@ public class TransactionRequest
         Nonce = nonce;
     }
 
-    public string Receiver { get; }
+    public string? Receiver { get; }
     public TokenAmount Value { get; }
     public int GasPrice { get; }
     public string Data { get; }

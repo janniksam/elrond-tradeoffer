@@ -26,10 +26,16 @@ namespace Elrond.TradeOffer.Web.Network
 
         private static string BuildTransactionUrl(TransactionRequest request, string? callbackUrl)
         {
-            StringBuilder builder = new($"receiver={request.Receiver}&value={request.Value.Value}");
+            StringBuilder builder = new();
+            builder.Append($"value={request.Value.Value}");
             builder.Append($"&gasLimit={request.GasLimit}");
             builder.Append($"&gasPrice={request.GasPrice}");
             builder.Append($"&data={request.Data}");
+
+            if (request.Receiver != null)
+            {
+                builder.Append($"&receiver={request.Receiver}");
+            }
 
             if (request.Nonce != null)
             {
