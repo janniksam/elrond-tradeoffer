@@ -13,6 +13,7 @@ public class Offer
         long creatorUserId,
         long creatorChatId,
         TokenAmount amount,
+        TokenAmount? tokenWant,
         string description)
     {
         Id = id;
@@ -22,6 +23,7 @@ public class Offer
         CreatedOn = createdOn;
         UpdatedOn = updatedOn;
         Amount = amount;
+        AmountWant = tokenWant;
         Description = description;
     }
     
@@ -39,6 +41,8 @@ public class Offer
     
     public TokenAmount Amount { get; }
 
+    public TokenAmount? AmountWant { get; }
+
     public string Description { get; }
 
     public static Offer From(DbOffer dbOffer)
@@ -50,8 +54,32 @@ public class Offer
             dbOffer.Network,
             dbOffer.CreatorUserId,
             dbOffer.CreatorChatId,
-            TokenAmount.From(dbOffer.TokenAmount,
-                new Token(dbOffer.TokenName, dbOffer.TokenId, dbOffer.TokenNonce, dbOffer.TokenPrecision)),
+            GetTokensOffered(dbOffer), 
+            GetTokenAmountWanted(dbOffer),
             dbOffer.Description);
+    }
+
+    private static TokenAmount GetTokensOffered(DbOffer dbOffer)
+    {
+        return TokenAmount.From(
+            dbOffer.TokenAmount,
+            new Token(dbOffer.TokenName, dbOffer.TokenId, dbOffer.TokenNonce, dbOffer.TokenPrecision));
+    }
+
+    private static TokenAmount? GetTokenAmountWanted(DbOffer dbOffer)
+    {
+        if (dbOffer.WantsSomethingSpecific &&
+            dbOffer.TokenNameWant != null &&
+            dbOffer.TokenAmountWant != null &&
+            dbOffer.TokenIdWant != null &&
+            dbOffer.TokenNonceWant != null &&
+            dbOffer.TokenPrecisionWant != null)
+        {
+            return TokenAmount.From(
+                dbOffer.TokenAmountWant,
+                new Token(dbOffer.TokenNameWant, dbOffer.TokenIdWant, dbOffer.TokenNonceWant.Value, dbOffer.TokenPrecisionWant.Value));
+        }
+
+        return null;
     }
 }

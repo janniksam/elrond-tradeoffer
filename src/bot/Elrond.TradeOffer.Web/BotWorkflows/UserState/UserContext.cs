@@ -4,6 +4,8 @@ public enum UserContext
 {
     None,
     EnterOfferAmount,
+    EnterOfferWantToken,
+    EnterOfferWantAmount,
     EnterOfferDescription,
     EnterBidAmount,
     EnterWalletAddress,

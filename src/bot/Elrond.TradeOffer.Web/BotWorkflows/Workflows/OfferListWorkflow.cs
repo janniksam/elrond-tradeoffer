@@ -166,9 +166,19 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             {
                 foreach (var offer in offers)
                 {
+                    string offerDisplay;
+                    if (offer.AmountWant == null)
+                    {
+                        offerDisplay = $"{offer.Amount.ToCurrencyStringWithIdentifier()} - {offer.Description}";
+                    }
+                    else
+                    {
+                        offerDisplay = $"{offer.Amount.ToCurrencyStringWithName()} <-> {offer.AmountWant.ToCurrencyStringWithIdentifier()}";
+                    }
+
                     buttons.Add(new[]
                     {
-                        InlineKeyboardButton.WithCallbackData($"{offer.Amount.ToCurrencyStringWithIdentifier()} - {offer.Description}", CommonQueries.ShowOfferQuery(offer.Id))
+                        InlineKeyboardButton.WithCallbackData(offerDisplay, CommonQueries.ShowOfferQuery(offer.Id))
                     });
                 }
             }

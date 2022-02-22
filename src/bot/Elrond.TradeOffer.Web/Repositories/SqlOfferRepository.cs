@@ -24,9 +24,7 @@ namespace Elrond.TradeOffer.Web.Repositories
 
         public async Task<Guid> PlaceAsync(ElrondUser user, TemporaryOffer temporaryOffer, long chatId, CancellationToken ct)
         {
-            if (temporaryOffer.Amount == null ||
-                temporaryOffer.Description == null ||
-                temporaryOffer.Token == null)
+            if (!temporaryOffer.IsFilled)
             {
                 throw new ArgumentException($"{nameof(temporaryOffer)} not filled correctly.", nameof(temporaryOffer));
             }
@@ -40,12 +38,18 @@ namespace Elrond.TradeOffer.Web.Repositories
                 user.Network,
                 user.UserId,
                 chatId,
-                temporaryOffer.Description,
-                temporaryOffer.Token.Id,
+                temporaryOffer.Description!,
+                temporaryOffer.Token!.Id,
                 temporaryOffer.Token.Name,
                 temporaryOffer.Token.Nonce,
                 temporaryOffer.Token.DecimalPrecision,
-                temporaryOffer.Amount.Value.ToString());
+                temporaryOffer.Amount!.Value.ToString(),
+                temporaryOffer.WantSomethingSpecific.GetValueOrDefault(),
+                temporaryOffer.AmountWant?.Token.Id,
+                temporaryOffer.AmountWant?.Token.Name,
+                temporaryOffer.AmountWant?.Token.Nonce,
+                temporaryOffer.AmountWant?.Token.DecimalPrecision,
+                temporaryOffer.AmountWant?.Value.ToString());
 
             await using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
             dbContext.Offers.Add(dbOffer);

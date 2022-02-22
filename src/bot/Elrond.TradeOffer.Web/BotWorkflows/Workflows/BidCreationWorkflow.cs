@@ -2,6 +2,7 @@
 using System.Numerics;
 using System.Text.RegularExpressions;
 using Elrond.TradeOffer.Web.BotWorkflows.BidsTemporary;
+using Elrond.TradeOffer.Web.BotWorkflows.Offers;
 using Elrond.TradeOffer.Web.BotWorkflows.UserState;
 using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Models;
@@ -67,6 +68,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
 
             var userId = query.From.Id;
             var chatId = query.Message.Chat.Id;
+            var previousMessageId = query.Message.MessageId;
 
             if (query.Data.StartsWith(CommonQueries.PlaceBidQueryPrefix))
             {
@@ -78,6 +80,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     return WorkflowResult.Unhandled();
                 }
 
+                await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
                 return await CreateANewBidAsync(client, userId, chatId, offerId, ct);
             }
 
@@ -99,8 +102,14 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
         private async Task<WorkflowResult> CreateANewBidAsync(ITelegramBotClient client, long userId, long chatId, Guid offerId, CancellationToken ct)
         {
             _temporaryBidManager.Reset(userId);
-            _temporaryBidManager.SetOfferId(userId, offerId);
 
+            var offer = await _offerRepository.GetAsync(offerId, ct);
+            if (offer == null)
+            {
+                await OfferNotFoundRedirectAsync(client, userId, chatId, ct);
+                return WorkflowResult.Handled();
+            }
+            
             var elrondUser = await _userManager.GetAsync(userId, ct);
             if (elrondUser.Address == null)
             {
@@ -113,7 +122,44 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             }
 
             var balances = (await _elrondApiService.GetBalancesAsync(elrondUser.Address, elrondUser.Network)).ToArray();
-            return await PlaceBidWizard(client, userId, chatId, balances, ct);
+            _temporaryBidManager.SetOfferId(userId, offerId);
+            if (offer.AmountWant != null)
+            {
+                var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
+                
+                var balanceForDesiredToken =
+                    balances.FirstOrDefault(p => p.Token.Identifier == offer.AmountWant.Token.Identifier);
+                if (balanceForDesiredToken == null ||
+                    balanceForDesiredToken.Amount.Value < offer.AmountWant.Value)
+                {
+                    var myBalance = 
+                        balanceForDesiredToken?.Amount.ToHtmlUrl(networkStrategy) ?? 
+                        TokenAmount.From(0m, offer.AmountWant.Token).ToHtmlUrl(networkStrategy);
+
+                    await client.SendTextMessageAsync(
+                        chatId,
+                        $"You don't have enough {offer.AmountWant.Token.ToHtmlLink(networkStrategy)}.\n" +
+                        $"You have {myBalance}.\n" +
+                        $"The creator of the offer wants to have at least {offer.AmountWant.ToHtmlUrl(networkStrategy)}.",
+                        ParseMode.Html,
+                        cancellationToken: ct);
+                    await _offerDetailNavigation.ShowOfferAsync(client, userId, chatId, offerId, ct);
+                    return WorkflowResult.Handled();
+                }
+                
+                _temporaryBidManager.SetToken(userId, offer.AmountWant.Token);
+            }
+            
+            return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
+        }
+
+        private async Task OfferNotFoundRedirectAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
+        {
+            await client.SendTextMessageAsync(
+                chatId,
+                "Offer not found.",
+                cancellationToken: ct);
+            await _offerListNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
         }
 
         private async Task<WorkflowResult> CreateBidOnTokenChosenAsync(ITelegramBotClient client, long userId, long chatId,
@@ -130,11 +176,24 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return WorkflowResult.Handled();
             }
 
+            var temporaryBid = _temporaryBidManager.Get(userId);
+            if (temporaryBid.OfferId == null)
+            {
+                throw new InvalidOperationException("OfferId is NULL.");
+            }
+
+            var offer = await _offerRepository.GetAsync(temporaryBid.OfferId.Value, ct);
+            if (offer == null)
+            {
+                await OfferNotFoundRedirectAsync(client, userId, chatId, ct);
+                return WorkflowResult.Handled();
+            }
+
             var balances = (await _elrondApiService.GetBalancesAsync(elrondUser.Address, elrondUser.Network)).ToArray();
             var token = balances.FirstOrDefault(p => p.Token.Identifier == tokenIdentifier);
             if (token?.Token == null)
             {
-                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
             }
 
             _temporaryBidManager.SetToken(userId, token.Token);
@@ -144,7 +203,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 _temporaryBidManager.SetTokenAmount(userId, token.Amount);
             }
 
-            return await PlaceBidWizard(client, userId, chatId, balances, ct);
+            return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
         }
 
         private async Task PlaceBidAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
@@ -197,7 +256,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             await _offerDetailNavigation.ShowOfferAsync(client, userId, chatId, temporaryBid.OfferId.Value, ct);
         }
 
-        private async Task<WorkflowResult> PlaceBidWizard(ITelegramBotClient client, long userId, long chatId, IReadOnlyCollection<ElrondToken> balances, CancellationToken ct)
+        private async Task<WorkflowResult> PlaceBidWizard(ITelegramBotClient client, long userId, long chatId, Offer offer, IReadOnlyCollection<ElrondToken> balances, CancellationToken ct)
         {
             var elrondUser = await _userManager.GetAsync(userId, ct);
             var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
@@ -205,17 +264,6 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
             if (temporaryBid.OfferId == null)
             {
                 throw new InvalidOperationException("OfferId is NULL.");
-            }
-
-            var offer = await _offerRepository.GetAsync(temporaryBid.OfferId.Value, ct);
-            if (offer == null)
-            {
-                await client.SendTextMessageAsync(
-                    chatId,
-                    "Offer not found.",
-                    cancellationToken: ct);
-                await _offerListNavigation.ShowOffersAsync(client, userId, chatId, OfferFilter.None(), ct);
-                return WorkflowResult.Handled();
             }
 
             if (temporaryBid.Token == null)
@@ -257,10 +305,20 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                         $"Token was not found {temporaryBid.Token.Identifier} in wallet balance.");
                 }
 
-                var message =
-                    $"You're trying to place a bid for the offer of {offer.Amount.ToHtmlUrl(networkStrategy)}.\n" +
-                    $"You chose the token {temporaryBid.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()}).\n\n" +
-                    "Please choose a token amount for your bid:";
+                var message = $"You're trying to place a bid for the offer of {offer.Amount.ToHtmlUrl(networkStrategy)}.\n";
+                if (offer.AmountWant == null)
+                {
+                    message +=
+                        $"You chose the token {temporaryBid.Token.ToHtmlLink(networkStrategy)} (You have {tokenBalanceOfChosenToken.Amount.ToCurrencyString()}).\n\n" +
+                        "Please choose a token amount for your bid:";
+                }
+                else
+                {
+                    var wantedTokenAmount = offer.AmountWant.ToHtmlUrl(networkStrategy);
+                    message += $"The creator of this offer wants to have at least {wantedTokenAmount}.\n\n";
+                    message +=
+                        $"Please enter a token amount of at least {wantedTokenAmount} that you wanna bid on this offer:";
+                }
 
                 var sentMessage = await client.SendTextMessageAsync(
                     chatId,
@@ -333,24 +391,37 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                 return WorkflowResult.Handled();
             }
 
+            var temporaryBid = _temporaryBidManager.Get(userId);
+            if (temporaryBid.OfferId == null)
+            {
+                throw new InvalidOperationException("OfferId is NULL.");
+            }
+
+            var offer = await _offerRepository.GetAsync(temporaryBid.OfferId.Value, ct);
+            if (offer == null)
+            {
+                await OfferNotFoundRedirectAsync(client, userId, chatId, ct);
+                return WorkflowResult.Handled();
+            }
+
             var balances = (await _elrondApiService.GetBalancesAsync(elrondUser.Address, elrondUser.Network)).ToArray();
 
             var regexAmount = new Regex("^[0-9]+(\\.[0-9]+)?$");
             if (tokenAmount == null || !regexAmount.IsMatch(tokenAmount))
             {
-                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
             }
 
             var temporaryOffer = _temporaryBidManager.Get(userId);
             if (temporaryOffer.Token == null)
             {
-                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
             }
 
             var tokenBalance = balances.FirstOrDefault(p => p.Token.Identifier == temporaryOffer.Token.Identifier);
             if (tokenBalance == null)
             {
-                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
             }
 
             var tokenAmountDecimal = decimal.Parse(tokenAmount, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);
@@ -361,7 +432,7 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     $"The amount {amountChosen.ToCurrencyString()} is higher than the avaliable amount {tokenBalance.Amount.ToCurrencyString()}.",
                     cancellationToken: ct);
-                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
             }
 
             if (amountChosen.Value <= BigInteger.Zero)
@@ -370,11 +441,21 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows
                     chatId,
                     $"The amount {amountChosen.ToCurrencyString()} must be bigger than 0.",
                     cancellationToken: ct);
-                return await PlaceBidWizard(client, userId, chatId, balances, ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
+            }
+
+            if (offer.AmountWant != null &&
+                amountChosen.Value < offer.AmountWant.Value)
+            {
+                await client.SendTextMessageAsync(
+                    chatId,
+                    $"The amount {amountChosen.ToCurrencyString()} is smaller than the desired amount of {offer.AmountWant.ToCurrencyString()}.",
+                    cancellationToken: ct);
+                return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
             }
 
             _temporaryBidManager.SetTokenAmount(userId, amountChosen);
-            return await PlaceBidWizard(client, userId, chatId, balances, ct);
+            return await PlaceBidWizard(client, userId, chatId, offer, balances, ct);
         }
     }
 }
