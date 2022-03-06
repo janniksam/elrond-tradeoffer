@@ -15,8 +15,7 @@ pub trait Trader {
     #[init]
     fn init(
         &self
-    ) -> SCResult<()> {
-        Ok(())
+    ) {
     }
 
     // endpoints
@@ -36,7 +35,7 @@ pub trait Trader {
         wanna_have_token : TokenIdentifier,
         wanna_have_amount : BigUint,
         wanna_have_nonce: u64
-    ) -> SCResult<()> {
+    ) {
         require!(
             offer_amount > 0,
             "offer_amount needs to be greater than 0"
@@ -74,8 +73,6 @@ pub trait Trader {
         };
         
         self.trade_offer(&trade_offer_id).set(&offer);
-
-        Ok(())
     }
     
     // This endpoint cancels your trade offer and sends you back your tokens.
@@ -83,7 +80,7 @@ pub trait Trader {
     fn cancel_offer(
         &self,
         trade_offer_id: ManagedBuffer
-    ) -> SCResult<()> {
+    ) {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
             "An offer with this id does not exist"
@@ -101,8 +98,6 @@ pub trait Trader {
 
         self.send()
             .direct(&caller, &info.token_identifier_offered, info.token_nonce_offered, &info.token_amount_offered, b"Trade offer cancelled");
-    
-        Ok(())
     }
 
     // This endpoint will be used by the other party. 
@@ -118,7 +113,7 @@ pub trait Trader {
         wanna_have_token : TokenIdentifier,
         wanna_have_amount : BigUint,
         wanna_have_nonce: u64
-    ) -> SCResult<()> {
+    ) {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
             "An offer with this id does not exist"
@@ -147,8 +142,6 @@ pub trait Trader {
             .direct(&caller, &offer_info.token_identifier_offered, offer_info.token_nonce_offered, &offer_info.token_amount_offered, b"trade offer accepted");
         self.send()
             .direct(&offer_info.offer_creator, &sent_token, sent_nonce, &sent_amount, b"your trade offer has been accepted");
-
-        Ok(())
     }
 
     // storage
@@ -158,8 +151,8 @@ pub trait Trader {
     fn trade_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<TradeOffer<Self::Api>>;
 
     #[view(are_offers_pending)]
-    fn offers_pending(&self, #[var_args] offer_id_list: VarArgs<ManagedBuffer>) -> ManagedMultiResultVec<u8> {
-        let mut result = ManagedMultiResultVec::new();
+    fn offers_pending(&self, #[var_args] offer_id_list: MultiValueVec<ManagedBuffer>) -> MultiValueEncoded<u8> {
+        let mut result = MultiValueEncoded::new();
         for offer_id in offer_id_list.iter()
         {
             let not_found_offer = self.trade_offer(&offer_id).is_empty();
@@ -179,8 +172,8 @@ pub trait Trader {
     fn finished_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<u8>;
 
     #[view(get_finished_offer_list)]
-    fn finished_offer_list(&self, #[var_args] offer_id_list: VarArgs<ManagedBuffer>) -> ManagedMultiResultVec<u8> {
-        let mut result = ManagedMultiResultVec::new();        
+    fn finished_offer_list(&self, #[var_args] offer_id_list: MultiValueVec<ManagedBuffer>) -> MultiValueEncoded<u8> {
+        let mut result = MultiValueEncoded::new();        
         for offer_id in offer_id_list.iter()
         {
             let offer_status = self.finished_offer(&offer_id).get();

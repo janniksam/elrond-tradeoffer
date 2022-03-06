@@ -7,7 +7,6 @@
 elrond_wasm_node::wasm_endpoints! {
     elrond_trade_offer
     (
-        init
         accept_offer
         are_offers_pending
         cancel_offer
