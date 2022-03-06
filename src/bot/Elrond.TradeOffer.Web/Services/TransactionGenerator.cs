@@ -24,14 +24,8 @@ namespace Elrond.TradeOffer.Web.Services
 
         public async Task<string> GenerateInitiateTradeUrlAsync(Offer offer, Bid acceptedBid)
         {
-            var elrondUser = await _userManager.GetAsync(offer.CreatorUserId, CancellationToken.None);
-            if (elrondUser.Address == null)
-            {
-                throw new ArgumentException("Address of the user needs to be filled.", nameof(offer));
-            }
-
-            var networkStrategy = _networkStrategies.GetStrategy(elrondUser.Network);
-            var networkConfig = await _elrondApiService.GetNetworkConfigAsync(elrondUser.Network);
+            var networkStrategy = _networkStrategies.GetStrategy(offer.Network);
+            var networkConfig = await _elrondApiService.GetNetworkConfigAsync(offer.Network);
             
             var receiver = networkStrategy.GetSmartContractAddress();
             var minGasLimit = networkConfig.Config.erd_min_gas_limit;
@@ -52,7 +46,7 @@ namespace Elrond.TradeOffer.Web.Services
             {
                 var data = CreateDataInitiateTradeForEsdt(receiver, offer, acceptedBid.Amount);
                 request = new TransactionRequest(
-                    elrondUser.Address,
+                    null,
                     TokenAmount.From(0, Token.Egld()),
                     minGasLimit,
                     minGasPrice,

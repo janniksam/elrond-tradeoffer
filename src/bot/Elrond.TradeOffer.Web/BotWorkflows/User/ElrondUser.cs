@@ -3,28 +3,13 @@ using Elrond.TradeOffer.Web.Extensions;
 
 namespace Elrond.TradeOffer.Web.BotWorkflows.User;
 
-public record ElrondUser
+public record ElrondUser(long UserId, string? Address, ElrondNetwork Network, bool IsAdmin)
 {
-    public ElrondUser(long userId)
-    {
-        UserId = userId;
-    }
+    public string? Address { get; set; } = Address;
 
-    private ElrondUser(long userId, string? address, ElrondNetwork network, bool isAdmin)
-    {
-        UserId = userId;
-        Address = address;
-        Network = network;
-        IsAdmin = isAdmin;
-    }
+    public ElrondNetwork Network { get; set; } = Network;
 
-    public long UserId { get; }
-
-    public string? Address { get; set; }
-
-    public ElrondNetwork Network { get; set; }
-
-    public bool IsAdmin { get; set; }
+    public bool IsAdmin { get; } = IsAdmin;
 
     public static ElrondUser From(DbUser user) => new(user.Id, user.Address, user.Network, user.IsAdmin);
  

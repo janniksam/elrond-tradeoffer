@@ -37,13 +37,13 @@ namespace Elrond.TradeOffer.Web.Models
             return $"{ToCurrencyString()} {Token.Identifier}";
         }
 
+        public string ToCurrencyStringWithName()
+        {
+            return $"{ToCurrencyString()} {Token.Name}";
+        }
+
         public string ToHtmlUrl(INetworkStrategy networkStrategy)
         {
-            if (Token.IsEgld())
-            {
-                return $"{ToCurrencyString()} {Token.Identifier}";
-            }
-
             var tokenUrl = Token.ToHtmlLink(networkStrategy);
             return $"{ToCurrencyString()} {tokenUrl}";
         }

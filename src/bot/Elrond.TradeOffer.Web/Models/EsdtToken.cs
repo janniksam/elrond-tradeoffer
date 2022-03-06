@@ -21,5 +21,5 @@ public class EsdtToken
     public bool canPause { get; set; }
     public bool canFreeze { get; set; }
     public bool canWipe { get; set; }
-    public string balance { get; set; }
+    public string? balance { get; set; }
 }

@@ -24,10 +24,10 @@ public class TemporaryOfferManager : ITemporaryOfferManager
         _temporaryOffer.AddOrUpdate(
             userId,
             _ => new TemporaryOffer { Token = token },
-            (_, user) =>
+            (_, temporaryOffer) =>
             {
-                user.Token = token;
-                return user;
+                temporaryOffer.Token = token;
+                return temporaryOffer;
             });
     }
 
@@ -36,10 +36,52 @@ public class TemporaryOfferManager : ITemporaryOfferManager
         _temporaryOffer.AddOrUpdate(
             userId,
             _ => new TemporaryOffer { Amount = tokenAmount },
-            (_, user) =>
+            (_, temporaryOffer) =>
             {
-                user.Amount = tokenAmount;
-                return user;
+                temporaryOffer.Amount = tokenAmount;
+                return temporaryOffer;
+            });
+    }
+
+    public void SetWantSomethingSpecific(long userId, bool wantSomethingSpecific)
+    {
+        _temporaryOffer.AddOrUpdate(
+            userId,
+            _ => new TemporaryOffer
+            {
+                WantSomethingSpecific = wantSomethingSpecific
+            },
+            (_, temporaryOffer) =>
+            {
+                temporaryOffer.WantSomethingSpecific = wantSomethingSpecific;
+                return temporaryOffer;
+            });
+    }
+
+    public void SetTokenWant(long userId, Token? tokenWant)
+    {
+        _temporaryOffer.AddOrUpdate(
+            userId,
+            _ => new TemporaryOffer
+            {
+                TokenWant = tokenWant,
+            },
+            (_, temporaryOffer) =>
+            {
+                temporaryOffer.TokenWant = tokenWant;
+                return temporaryOffer;
+            });
+    }
+
+    public void SetTokenAmountWant(long userId, TokenAmount amountWant)
+    {
+        _temporaryOffer.AddOrUpdate(
+            userId,
+            _ => new TemporaryOffer { AmountWant = amountWant },
+            (_, temporaryOffer) =>
+            {
+                temporaryOffer.AmountWant = amountWant;
+                return temporaryOffer;
             });
     }
 
@@ -48,10 +90,10 @@ public class TemporaryOfferManager : ITemporaryOfferManager
         _temporaryOffer.AddOrUpdate(
             userId,
             _ => new TemporaryOffer { Description = description },
-            (_, user) =>
+            (_, temporaryOffer) =>
             {
-                user.Description = description;
-                return user;
+                temporaryOffer.Description = description;
+                return temporaryOffer;
             });
     }
 }

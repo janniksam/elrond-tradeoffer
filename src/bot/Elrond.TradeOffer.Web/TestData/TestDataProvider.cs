@@ -13,7 +13,6 @@ namespace Elrond.TradeOffer.Web.TestData
         private const long MyUserId = 1692646156;
         private const long MyChatId = 1692646156;
         private const long OtherUser1Id = 1;
-        private const long OtherUser2Id = 2;
         private const long OtherUser1ChatId = 1;
 
         private static readonly Token LkmexToken = Token.Esdt("LKMEX", "LKMEX", 18);
@@ -45,13 +44,29 @@ namespace Elrond.TradeOffer.Web.TestData
 
             await ApplyOffer(
                 myUser, 
-                TokenAmount.From(1000000m, LkmexToken), 
+                TokenAmount.From(1000000m, LkmexToken),
+                null,
                 "My offer, no bids", 
                 MyChatId);
-           
+
+            await ApplyOffer(
+                anotherUser,
+                TokenAmount.From(1000000m, LkmexToken),
+                TokenAmount.From(1337m, Token.Egld()),
+                "My offer with minimum bid, no bids",
+                MyChatId);
+
+            await ApplyOffer(
+                anotherUser,
+                TokenAmount.From(1000000m, LkmexToken),
+                TokenAmount.From(13m, Token.Egld()), 
+                "My offer with minimum bid, no bids",
+                MyChatId);
+
             await ApplyOffer(
                 myUser,
-                TokenAmount.From(Million(2), LkmexToken), 
+                TokenAmount.From(Million(2), LkmexToken),
+                null,
                 "My offer, 2 bids",
                 MyChatId,
                 (MyChatId, new TemporaryBid(OtherUser1Id)
@@ -60,7 +75,7 @@ namespace Elrond.TradeOffer.Web.TestData
                     Amount = TokenAmount.From(0.3m, Token.Egld()),
                     BidState = BidState.Created
                 }),
-                (MyChatId, new TemporaryBid(OtherUser2Id)
+                (MyChatId, new TemporaryBid(MyUserId)
                 {
                     Token = Token.Egld(),
                     Amount = TokenAmount.From(0.4m, Token.Egld()),
@@ -69,7 +84,8 @@ namespace Elrond.TradeOffer.Web.TestData
 
             await ApplyOffer(
                 anotherUser,
-                TokenAmount.From(Million(10), LkmexToken), 
+                TokenAmount.From(Million(10), LkmexToken),
+                null,
                 "Other offer, my bid",
                 OtherUser1ChatId,
                 (OtherUser1ChatId, new TemporaryBid(OtherUser1Id)
@@ -82,6 +98,7 @@ namespace Elrond.TradeOffer.Web.TestData
             await ApplyOffer(
                 anotherUser,
                 TokenAmount.From(300, RideToken),
+                null,
                 "Between two other users",
                 OtherUser1ChatId,
                 (OtherUser1ChatId, new TemporaryBid(OtherUser1Id)
@@ -95,6 +112,7 @@ namespace Elrond.TradeOffer.Web.TestData
             await ApplyOffer(
                 anotherUser,
                 TokenAmount.From(300, RideToken),
+                null,
                 "Other offer, my chat id.",
                 MyChatId
             );
@@ -102,6 +120,7 @@ namespace Elrond.TradeOffer.Web.TestData
             await ApplyOffer(
                 anotherUser,
                 TokenAmount.From(0.005m, Token.Egld()),
+                null,
                 "My declined bid",
                 OtherUser1ChatId,
                 (MyChatId, new TemporaryBid(MyUserId)
@@ -113,7 +132,8 @@ namespace Elrond.TradeOffer.Web.TestData
 
             await ApplyOffer(
                 myUser, 
-                TokenAmount.From(0.005m, Token.Egld()), 
+                TokenAmount.From(0.005m, Token.Egld()),
+                null,
                 "My accepted egld offer, my egld bid",
                 MyChatId,
                 (MyChatId, new TemporaryBid(MyUserId) 
@@ -126,6 +146,7 @@ namespace Elrond.TradeOffer.Web.TestData
             await ApplyOffer(
                 myUser,
                 TokenAmount.From(0.005m, EsdtTestToken),
+                null,
                 "My accepted esdt offer, my egld bid",
                 MyChatId,
                 (MyChatId, new TemporaryBid(MyUserId)
@@ -138,6 +159,7 @@ namespace Elrond.TradeOffer.Web.TestData
             await ApplyOffer(
                 myUser,
                 TokenAmount.From(0.003m, Token.Egld()),
+                null,
                 "My accepted egld offer, my esdt bid",
                 MyChatId,
                 (MyChatId, new TemporaryBid(MyUserId)
@@ -148,13 +170,21 @@ namespace Elrond.TradeOffer.Web.TestData
                 }));
         }
 
-        private async Task ApplyOffer(ElrondUser user, TokenAmount amount, string description, long chatId,
+        private async Task ApplyOffer(
+            ElrondUser user, 
+            TokenAmount amount,
+            TokenAmount? amountWant,
+            string description, 
+            long chatId,
             params (long ChatId, TemporaryBid Bid)[] bids)
         {
             var offerId = await _offerRepository.PlaceAsync(user, new TemporaryOffer
             {
                 Token = amount.Token,
                 Amount = amount,
+                WantSomethingSpecific = amountWant != null,
+                TokenWant = amountWant?.Token,
+                AmountWant = amountWant,
                 Description = description
             }, chatId, CancellationToken.None);
 

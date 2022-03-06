@@ -9,13 +9,19 @@ public class DbOffer : BaseEntity
         Guid id,
         ElrondNetwork network,
         long creatorUserId,
-        long creatorChatId, 
+        long creatorChatId,
         string description,
-        string tokenId, 
-        string tokenName, 
+        string tokenId,
+        string tokenName,
         ulong tokenNonce,
-        int tokenPrecision, 
-        string tokenAmount)
+        int tokenPrecision,
+        string tokenAmount,
+        bool wantsSomethingSpecific,
+        string? tokenIdWant,
+        string? tokenNameWant,
+        ulong? tokenNonceWant,
+        int? tokenPrecisionWant, 
+        string? tokenAmountWant)
     {
         Id = id;
         Network = network;
@@ -27,6 +33,13 @@ public class DbOffer : BaseEntity
         TokenNonce = tokenNonce;
         TokenPrecision = tokenPrecision;
         TokenAmount = tokenAmount;
+
+        WantsSomethingSpecific = wantsSomethingSpecific;
+        TokenIdWant = tokenIdWant;
+        TokenNameWant = tokenNameWant;
+        TokenNonceWant = tokenNonceWant;
+        TokenPrecisionWant = tokenPrecisionWant;
+        TokenAmountWant = tokenAmountWant;
     }
 
     public Guid Id { get; private set; }
@@ -40,7 +53,7 @@ public class DbOffer : BaseEntity
     public string Description { get; private set; }
 
     public string TokenId { get; private set; }
-
+    
     public string TokenName { get; private set; }
 
     public ulong TokenNonce { get; private set; }
@@ -48,6 +61,18 @@ public class DbOffer : BaseEntity
     public int TokenPrecision { get; private set; }
 
     public string TokenAmount { get; private set; }
+
+    public bool WantsSomethingSpecific { get; private set; }
+
+    public string? TokenIdWant { get; private set; }
+    
+    public string? TokenNameWant { get; private set; }
+
+    public ulong? TokenNonceWant { get; private set; }
+    
+    public int? TokenPrecisionWant { get; private set; }
+
+    public string? TokenAmountWant { get; private set; }
 
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public virtual IEnumerable<DbBid> Bids { get; set; }

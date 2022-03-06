@@ -25,7 +25,7 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 builder.Services.AddSingleton<IConfiguration>(configuration);
-
+builder.Services.AddMemoryCache();
 builder.Services.AddLogging(b =>
 {
     b.AddConsole();
@@ -62,7 +62,7 @@ builder.Services.AddDbContextFactory<ElrondTradeOfferDbContext>(o =>
 });
 
 // services
-builder.Services.AddTransient<IElrondApiService, ElrondApiService>();
+builder.Services.AddTransient<IElrondApiService, CachedElrondApiService>();
 builder.Services.AddTransient<ITransactionGenerator, TransactionGenerator>();
 builder.Services.AddTransient<ITestDataProvider, TestDataProvider>();
 builder.Services.AddTransient<IBotNotificationsHelper, BotNotificationsHelper>();

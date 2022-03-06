@@ -1,6 +1,6 @@
-﻿using Elrond.TradeOffer.Web.Extensions;
+﻿using Elrond.TradeOffer.Web.BotWorkflows.UserState;
+using Elrond.TradeOffer.Web.Extensions;
 using Elrond.TradeOffer.Web.Repositories;
-using Elrond.TradeOffer.Web.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -11,23 +11,18 @@ namespace Elrond.TradeOffer.Web.BotWorkflows.Workflows;
 public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
 {
     private readonly IUserRepository _userRepository;
-    private readonly IFeatureStatesManager _featureStatesManager;
     private const string AboutQuery = "about";
-    private const string AdministrationQuery = "administration";
-    private const string ToggleDevNetQuery = "ToggleDevNet";
-    private const string ToggleTestNetQuery = "ToggleTestNet";
-    private const string ToggleMainNetQuery = "ToggleMainNet";
+    private const string EnterCodeQuery = "EnterOfferCode";
     private const string AboutText = "Made with 💚 by [janniksam](https://twitter.com/janniksamc/)\n\n" +
                                      "**Socials**\n" +
                                      "[Telegram Bot Discussion Group](https://t.me/elrondTradeOffer)\n" +
-                                     "[Twitter \\(Coming soon\\)](https://twitter.com)\n\n" +
+                                     "[Twitter](https://twitter.com/elrondTradeBot)\n\n" +
                                      "**Source\\-Code**:\n" +
                                      "[GitHub Repository](https://github.com/janniksam/elrond-tradeoffer)";
 
-    public StartMenuWorkflow(IUserRepository userRepository, IFeatureStatesManager featureStatesManager)
+    public StartMenuWorkflow(IUserRepository userRepository)
     {
         _userRepository = userRepository;
-        _featureStatesManager = featureStatesManager;
     }
 
     public async Task<WorkflowResult> ProcessCallbackQueryAsync(ITelegramBotClient client, CallbackQuery query, CancellationToken ct)
@@ -48,6 +43,12 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
             await ShowAboutAsync(client, chatId, ct);
             return WorkflowResult.Handled();
         }
+        
+        if (query.Data == EnterCodeQuery)
+        {
+            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
+            return await EnterOfferCodeAsync(client, userId, chatId, ct);
+        }
 
         if (query.Data == CommonQueries.BackToHomeQuery)
         {
@@ -56,105 +57,21 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
             return WorkflowResult.Handled();
         }
 
-        if (query.Data == AdministrationQuery)
-        {
-            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
-            await ShowAdministrationAsync(client, userId, chatId, ct);
-            return WorkflowResult.Handled();
-        }
-
-        if (query.Data == ToggleDevNetQuery)
-        {
-            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
-            await ToggleDevNetAsync(client, userId, chatId, ct);
-            return WorkflowResult.Handled();
-        }
-
-        if (query.Data == ToggleTestNetQuery)
-        {
-            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
-            await ToggleTestNetAsync(client, userId, chatId, ct);
-            return WorkflowResult.Handled();
-        }
-
-        if (query.Data == ToggleMainNetQuery)
-        {
-            await client.TryDeleteMessageAsync(chatId, previousMessageId, ct);
-            await ToggleMainNetAsync(client, userId, chatId, ct);
-            return WorkflowResult.Handled();
-        }
-
         return WorkflowResult.Unhandled();
     }
 
-    private async Task ToggleDevNetAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
+    private async Task<WorkflowResult> EnterOfferCodeAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
     {
         var user = await _userRepository.GetAsync(userId, ct);
-        if (!user.IsAdmin)
-        {
-            return;
-        }
 
-        var networkEnabled = await _featureStatesManager.GetDevNetEnabledAsync(ct);
-        await _featureStatesManager.SetDevNetStateAsync(!networkEnabled, userId, ct);
-        await ShowAdministrationAsync(client, userId, chatId, ct);
-    }
-
-    private async Task ToggleTestNetAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
-    {
-        var user = await _userRepository.GetAsync(userId, ct);
-        if (!user.IsAdmin)
-        {
-            return;
-        }
-
-        var networkEnabled = await _featureStatesManager.GetTestNetEnabledAsync(ct);
-        await _featureStatesManager.SetTestNetStateAsync(!networkEnabled, userId, ct);
-        await ShowAdministrationAsync(client, userId, chatId, ct);
-    }
-
-    private async Task ToggleMainNetAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
-    {
-        var user = await _userRepository.GetAsync(userId, ct);
-        if (!user.IsAdmin)
-        {
-            return;
-        }
-
-        var networkEnabled = await _featureStatesManager.GetMainNetEnabledAsync(ct);
-        await _featureStatesManager.SetMainNetStateAsync(!networkEnabled, userId, ct);
-        await ShowAdministrationAsync(client, userId, chatId, ct);
-    }
-
-    private async Task ShowAdministrationAsync(ITelegramBotClient client, long userId, long chatId, CancellationToken ct)
-    {
-        var user = await _userRepository.GetAsync(userId, ct);
-        if (!user.IsAdmin)
-        {
-            return;
-        }
-
-        var buttons = new List<InlineKeyboardButton[]>
-        {
-            new[] { InlineKeyboardButton.WithCallbackData("Toggle DevNet", ToggleDevNetQuery) },
-            new[] { InlineKeyboardButton.WithCallbackData("Toggle TestNet", ToggleTestNetQuery) },
-            new[] { InlineKeyboardButton.WithCallbackData("Toggle MainNet", ToggleMainNetQuery) },
-            new[] { InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery) }
-        };
-
-        var devNetEnabled = await _featureStatesManager.GetDevNetEnabledAsync(ct);
-        var testNetEnabled = await _featureStatesManager.GetTestNetEnabledAsync(ct);
-        var mainNetEnabled = await _featureStatesManager.GetMainNetEnabledAsync(ct);
-
-        var message = "<u><b>Administration</b></u>\n" +
-                      $"DevNet enabled = {devNetEnabled}\n" +
-                      $"TestNet enabled = {testNetEnabled}\n" +
-                      $"MainNet enabled = {mainNetEnabled}";
-
-        await client.SendTextMessageAsync(chatId, message,
-            ParseMode.Html,
-            replyMarkup: new InlineKeyboardMarkup(buttons),
+        var message = await client.SendTextMessageAsync(
+            chatId,
+            $"Please enter a offer code to open an offer (current network: {user.Network}):",
+            replyMarkup: new InlineKeyboardMarkup(
+                InlineKeyboardButton.WithCallbackData("Back", CommonQueries.BackToHomeQuery)),
             cancellationToken: ct);
+
+        return WorkflowResult.Handled(UserContext.EnterOfferCode, message.MessageId);
     }
 
     public async Task<WorkflowResult> ProcessMessageAsync(ITelegramBotClient client, Message message, CancellationToken ct)
@@ -194,16 +111,19 @@ public class StartMenuWorkflow : IBotProcessor, IStartMenuNavigation
             },
             new[]
             {
+                InlineKeyboardButton.WithCallbackData("Enter an offer code", EnterCodeQuery),
+            },
+            new[]
+            {
                 InlineKeyboardButton.WithCallbackData("🔧 Change network or address", CommonQueries.ChangeNetworkOrAddressQuery),
             }
         };
-        
 
         if (user.IsAdmin)
         {
             buttons.Add(new[]
             {
-                InlineKeyboardButton.WithCallbackData("👮 Administration", AdministrationQuery),
+                InlineKeyboardButton.WithCallbackData("👮 Administration", CommonQueries.AdministrationQuery),
             });
         }
 

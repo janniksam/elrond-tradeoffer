@@ -13,6 +13,10 @@ public static class HtmlUrl
     public static string ToHtmlLink(this Token token, INetworkStrategy networkStrategy)
     {
         string urlFormat;
+        if (token.IsEgld())
+        {
+            return $"{token.Identifier}";
+        }
         if (token.IsNft())
         {
             urlFormat = networkStrategy.GetNftUrlFormat();
