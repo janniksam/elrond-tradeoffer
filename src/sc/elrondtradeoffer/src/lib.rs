@@ -151,9 +151,9 @@ pub trait Trader {
     fn trade_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<TradeOffer<Self::Api>>;
 
     #[view(are_offers_pending)]
-    fn offers_pending(&self, #[var_args] offer_id_list: MultiValueVec<ManagedBuffer>) -> MultiValueEncoded<u8> {
+    fn offers_pending(&self, #[var_args] offer_id_list: MultiValueEncoded<ManagedBuffer>) -> MultiValueEncoded<u8> {
         let mut result = MultiValueEncoded::new();
-        for offer_id in offer_id_list.iter()
+        for offer_id in offer_id_list.into_iter()
         {
             let not_found_offer = self.trade_offer(&offer_id).is_empty();
             if not_found_offer {
@@ -172,9 +172,9 @@ pub trait Trader {
     fn finished_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<u8>;
 
     #[view(get_finished_offer_list)]
-    fn finished_offer_list(&self, #[var_args] offer_id_list: MultiValueVec<ManagedBuffer>) -> MultiValueEncoded<u8> {
+    fn finished_offer_list(&self, #[var_args] offer_id_list: MultiValueEncoded<ManagedBuffer>) -> MultiValueEncoded<u8> {
         let mut result = MultiValueEncoded::new();        
-        for offer_id in offer_id_list.iter()
+        for offer_id in offer_id_list.into_iter()
         {
             let offer_status = self.finished_offer(&offer_id).get();
             result.push(offer_status);
