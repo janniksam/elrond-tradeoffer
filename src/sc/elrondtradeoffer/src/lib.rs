@@ -15,8 +15,7 @@ pub trait Trader {
     #[init]
     fn init(
         &self
-    ) -> SCResult<()> {
-        Ok(())
+    ) {
     }
 
     // endpoints
@@ -29,14 +28,14 @@ pub trait Trader {
     #[endpoint]
     fn offer(
         &self,
-        #[payment_token] offer_token: TokenIdentifier,
+        #[payment_token] offer_token: EgldOrEsdtTokenIdentifier,
         #[payment_amount] offer_amount: BigUint,
         #[payment_nonce] offer_nonce: u64,
         trade_offer_id: ManagedBuffer,
-        wanna_have_token : TokenIdentifier,
+        wanna_have_token : EgldOrEsdtTokenIdentifier,
         wanna_have_amount : BigUint,
         wanna_have_nonce: u64
-    ) -> SCResult<()> {
+    ) {
         require!(
             offer_amount > 0,
             "offer_amount needs to be greater than 0"
@@ -74,8 +73,6 @@ pub trait Trader {
         };
         
         self.trade_offer(&trade_offer_id).set(&offer);
-
-        Ok(())
     }
     
     // This endpoint cancels your trade offer and sends you back your tokens.
@@ -83,7 +80,7 @@ pub trait Trader {
     fn cancel_offer(
         &self,
         trade_offer_id: ManagedBuffer
-    ) -> SCResult<()> {
+    ) {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
             "An offer with this id does not exist"
@@ -100,9 +97,7 @@ pub trait Trader {
         self.finished_offer(&trade_offer_id).set(&2);
 
         self.send()
-            .direct(&caller, &info.token_identifier_offered, info.token_nonce_offered, &info.token_amount_offered, b"Trade offer cancelled");
-    
-        Ok(())
+            .direct(&caller, &info.token_identifier_offered, info.token_nonce_offered, &info.token_amount_offered);
     }
 
     // This endpoint will be used by the other party. 
@@ -112,13 +107,13 @@ pub trait Trader {
     fn accept_offer(
         &self,
         trade_offer_id: ManagedBuffer,
-        #[payment_token] sent_token: TokenIdentifier,
+        #[payment_token] sent_token: EgldOrEsdtTokenIdentifier,
         #[payment_amount] sent_amount: BigUint,
         #[payment_nonce] sent_nonce: u64,
-        wanna_have_token : TokenIdentifier,
+        wanna_have_token : EgldOrEsdtTokenIdentifier,
         wanna_have_amount : BigUint,
         wanna_have_nonce: u64
-    ) -> SCResult<()> {
+    ) {
         require!(
             !self.trade_offer(&trade_offer_id).is_empty(),
             "An offer with this id does not exist"
@@ -144,11 +139,9 @@ pub trait Trader {
         // Exchanging tokens between parties
         let caller = self.blockchain().get_caller();
         self.send()
-            .direct(&caller, &offer_info.token_identifier_offered, offer_info.token_nonce_offered, &offer_info.token_amount_offered, b"trade offer accepted");
+            .direct(&caller, &offer_info.token_identifier_offered, offer_info.token_nonce_offered, &offer_info.token_amount_offered);
         self.send()
-            .direct(&offer_info.offer_creator, &sent_token, sent_nonce, &sent_amount, b"your trade offer has been accepted");
-
-        Ok(())
+            .direct(&offer_info.offer_creator, &sent_token, sent_nonce, &sent_amount);
     }
 
     // storage
@@ -158,9 +151,9 @@ pub trait Trader {
     fn trade_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<TradeOffer<Self::Api>>;
 
     #[view(are_offers_pending)]
-    fn offers_pending(&self, #[var_args] offer_id_list: VarArgs<ManagedBuffer>) -> ManagedMultiResultVec<u8> {
-        let mut result = ManagedMultiResultVec::new();
-        for offer_id in offer_id_list.iter()
+    fn offers_pending(&self, offer_id_list: MultiValueEncoded<ManagedBuffer>) -> MultiValueEncoded<u8> {
+        let mut result = MultiValueEncoded::new();
+        for offer_id in offer_id_list.into_iter()
         {
             let not_found_offer = self.trade_offer(&offer_id).is_empty();
             if not_found_offer {
@@ -179,9 +172,9 @@ pub trait Trader {
     fn finished_offer(&self, offer_id: &ManagedBuffer) -> SingleValueMapper<u8>;
 
     #[view(get_finished_offer_list)]
-    fn finished_offer_list(&self, #[var_args] offer_id_list: VarArgs<ManagedBuffer>) -> ManagedMultiResultVec<u8> {
-        let mut result = ManagedMultiResultVec::new();        
-        for offer_id in offer_id_list.iter()
+    fn finished_offer_list(&self, offer_id_list: MultiValueEncoded<ManagedBuffer>) -> MultiValueEncoded<u8> {
+        let mut result = MultiValueEncoded::new();        
+        for offer_id in offer_id_list.into_iter()
         {
             let offer_status = self.finished_offer(&offer_id).get();
             result.push(offer_status);
